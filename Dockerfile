@@ -39,6 +39,7 @@ VOLUME /data
 RUN chown -R node:node /home/node/app
 
 ENV DB_PATH=/data/omie_prices.db
+ENV FRONTEND_BUILD_PATH=/home/node/app/build
 
 ARG PORT=3000
 ENV PORT=${PORT}

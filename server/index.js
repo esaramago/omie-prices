@@ -188,7 +188,7 @@ app.post('/api/scrape/trigger', scrapeLimiter, authenticateScrape, async (req, r
 });
 
 // Serve frontend static assets (built by SvelteKit static adapter)
-const frontendBuildPath = path.join(__dirname, '../frontend/build');
+const frontendBuildPath = process.env.FRONTEND_BUILD_PATH || path.join(__dirname, '../frontend/build');
 app.use(express.static(frontendBuildPath));
 
 // Fallback all other routes to frontend SPA router
