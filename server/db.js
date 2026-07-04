@@ -28,7 +28,7 @@ db.pragma('temp_store = MEMORY');
 
 // Verificação de integridade da base de dados
 try {
-  const integrity = db.pragma('integrity_check', [], { simple: true });
+  const integrity = db.pragma('integrity_check', { simple: true });
   if (integrity !== 'ok') {
     console.error('[DB] Integrity check failed:', integrity);
     db.pragma('recover'); // Tenta recuperar (SQLite 3.38+)

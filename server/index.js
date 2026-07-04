@@ -192,7 +192,7 @@ const frontendBuildPath = path.join(__dirname, '../frontend/build');
 app.use(express.static(frontendBuildPath));
 
 // Fallback all other routes to frontend SPA router
-app.get('*', (req, res) => {
+app.get('(.*)', (req, res) => {
   // If request is looking for an API endpoint that doesn't exist
   if (req.originalUrl.startsWith('/api')) {
     return res.status(404).json({ error: 'API endpoint not found' });
