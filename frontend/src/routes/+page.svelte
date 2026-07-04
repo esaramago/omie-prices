@@ -33,6 +33,29 @@
     return Math.min(Math.max(period, 1), 96);
   }
 
+  let currentPeriod = $state(getCurrentPeriod());
+  const currentHour = $derived(Math.floor((currentPeriod - 1) / 4));
+
+  function formatDataLabel(value, opts) {
+    if (typeof value !== 'number') return '';
+    const isQuarterly = chartViewMode === 'quarterly';
+    
+    // Check if this data point is the active/current one
+    const isCurrent = isSelectedDateToday && (
+      (isQuarterly && opts.dataPointIndex === (currentPeriod - 1)) ||
+      (!isQuarterly && opts.dataPointIndex === currentHour)
+    );
+
+    if (isQuarterly) {
+      // In quarterly mode, show every 4th label OR the current period's label
+      if (isCurrent || opts.dataPointIndex % 4 === 0) {
+        return `${value.toFixed(1)}€`;
+      }
+      return '';
+    }
+    return `${value.toFixed(1)}€`;
+  }
+
   // Derived state: aggregate 15-minute periods into hourly averages for the chart
   const hourlyPrices = $derived.by(() => {
     if (prices.length === 0) return [];
@@ -69,7 +92,6 @@
       : null
   );
 
-  const currentPeriod = getCurrentPeriod();
   const currentPriceRecord = $derived(
     prices.length > 0 ? prices.find((p) => p.period === currentPeriod) : null
   );
@@ -118,6 +140,7 @@
     // Refresh API status and current period calculations every 5 minutes
     const interval = setInterval(() => {
       loadStatus();
+      currentPeriod = getCurrentPeriod();
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   });
@@ -130,7 +153,29 @@
         time: periodToTime(p.period)
       }));
       const seriesData = displayData.map((p) => p.price);
-      const categories = displayData.map((p) => p.time);
+      
+      const activeIdx = isSelectedDateToday 
+        ? (chartViewMode === 'hourly' ? currentHour : currentPeriod - 1)
+        : -1;
+
+      const categories = displayData.map((p, idx) => {
+        if (isSelectedDateToday && idx === activeIdx) {
+          return `${p.time} (Atual)`;
+        }
+        return p.time;
+      });
+
+      const baseColor = '#00f2fe';
+      const baseGradientColor = '#4facfe';
+      const highlightColor = '#fbbf24';       // amber/gold
+      const highlightGradientColor = '#f97316'; // orange
+
+      const colors = displayData.map((_, idx) => 
+        idx === activeIdx ? highlightColor : baseColor
+      );
+      const gradientToColors = displayData.map((_, idx) => 
+        idx === activeIdx ? highlightGradientColor : baseGradientColor
+      );
 
       const options = {
         chart: {
@@ -147,13 +192,36 @@
             horizontal: false,
             columnWidth: '70%',
             borderRadius: 6,
-            borderRadiusApplication: 'end'
+            borderRadiusApplication: 'end',
+            distributed: true,
+            dataLabels: {
+              position: 'top'
+            }
           }
         },
-        dataLabels: {
-          enabled: false
+        legend: {
+          show: false
         },
-        colors: ['#00f2fe'],
+        dataLabels: {
+          enabled: true,
+          style: {
+            fontSize: '11px',
+            fontFamily: 'Outfit, sans-serif',
+            fontWeight: '600',
+            colors: ['#ffffff']
+          },
+          background: {
+            enabled: true,
+            foreColor: '#0b0f19',
+            padding: 4,
+            borderRadius: 4,
+            borderWidth: 0,
+            opacity: 0.9
+          },
+          offsetY: -12,
+          formatter: formatDataLabel
+        },
+        colors: colors,
         stroke: { show: false },
         fill: {
           type: 'gradient',
@@ -161,7 +229,7 @@
             shade: 'dark',
             type: 'vertical',
             shadeIntensity: 0.5,
-            gradientToColors: ['#4facfe'],
+            gradientToColors: gradientToColors,
             inverseColors: false,
             opacityFrom: 0.85,
             opacityTo: 0.2,
@@ -181,7 +249,13 @@
             rotate: -45,
             rotateAlways: false,
             hideOverlappingLabels: true,
-            style: { colors: '#94a3b8', fontSize: '11px' }
+            style: { colors: '#94a3b8', fontSize: '11px' },
+            formatter: (value) => {
+              if (chartViewMode === 'quarterly') {
+                return value && (value.endsWith(':00') || value.includes('(Atual)')) ? value : '';
+              }
+              return value;
+            }
           },
           axisBorder: { show: false },
           axisTicks: { show: false }
@@ -189,7 +263,7 @@
         yaxis: {
           labels: {
             style: { colors: '#94a3b8' },
-            formatter: (value) => `${value.toFixed(2)} €`
+            formatter: (value) => typeof value === 'number' ? `${value.toFixed(2)} €` : value
           }
         },
         grid: {
@@ -200,7 +274,61 @@
           theme: 'dark',
           x: { show: true },
           y: { formatter: (value) => `${value.toFixed(2)} €/MWh` }
-        }
+        },
+        responsive: [
+          {
+            breakpoint: 640,
+            options: {
+              plotOptions: {
+                bar: {
+                  horizontal: true,
+                  barHeight: '70%',
+                  borderRadius: 4,
+                  borderRadiusApplication: 'end',
+                  distributed: true,
+                  dataLabels: {
+                    position: 'top'
+                  }
+                }
+              },
+              chart: {
+                height: chartViewMode === 'hourly' ? 650 : 1800
+              },
+              dataLabels: {
+                offsetX: 8,
+                offsetY: 0,
+                style: {
+                  fontSize: '11px'
+                }
+              },
+              fill: {
+                type: 'gradient',
+                gradient: {
+                  type: 'horizontal',
+                  gradientToColors: gradientToColors
+                }
+              },
+              xaxis: {
+                labels: {
+                  rotate: 0,
+                  style: { colors: '#94a3b8', fontSize: '11px' },
+                  formatter: (value) => typeof value === 'number' ? `${value.toFixed(1)} €` : value
+                }
+              },
+              yaxis: {
+                labels: {
+                  style: { colors: '#94a3b8', fontSize: '11px' },
+                  formatter: (value) => {
+                    if (chartViewMode === 'quarterly') {
+                      return value && (value.endsWith(':00') || value.includes('(Atual)')) ? value : '';
+                    }
+                    return value;
+                  }
+                }
+              }
+            }
+          }
+        ]
       };
 
       if (chart) {
@@ -307,78 +435,7 @@
       </div>
     </section>
   {:else if prices.length > 0}
-    <!-- Stats Grid -->
-    <section class="stats-grid">
-      <!-- Stat 1: Current Price -->
-      <div class="stat-card" class:highlight-pulse={isSelectedDateToday}>
-        <div class="card-glow glow-cyan"></div>
-        <div class="stat-header">
-          <span class="stat-label">Preço Atual</span>
-          <span class="stat-badge badge-cyan">{isSelectedDateToday ? 'Live' : 'Selecionado'}</span>
-        </div>
-        <div class="stat-value">
-          {currentPriceRecord ? `${currentPriceRecord.price.toFixed(2)}` : '--.--'}
-          <span class="unit">€/MWh</span>
-        </div>
-        <div class="stat-footer">
-          {#if isSelectedDateToday && currentPriceRecord}
-            <span>Período {currentPriceRecord.period} ({periodToTime(currentPriceRecord.period)})</span>
-          {:else}
-            <span>Período atual indisponível</span>
-          {/if}
-        </div>
-      </div>
 
-      <!-- Stat 2: Resumo do Dia -->
-      <div class="stat-card">
-        <div class="card-glow glow-amber"></div>
-        <div class="stat-header">
-          <span class="stat-label">Resumo do Dia</span>
-          <span class="stat-badge badge-amber">Métricas</span>
-        </div>
-        <div class="metrics-list">
-          <div class="metric-item">
-            <span class="metric-label">
-              <span class="indicator-dot dot-amber"></span>
-              Preço Médio
-            </span>
-            <span class="metric-value font-mono">
-              {averagePrice.toFixed(2)} <span class="unit">€/MWh</span>
-            </span>
-          </div>
-
-          <div class="metric-item">
-            <span class="metric-label">
-              <span class="indicator-dot dot-green"></span>
-              Preço Mínimo
-            </span>
-            <div class="metric-value-container">
-              <span class="metric-value text-green font-mono">
-                {minPriceRecord ? minPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
-              </span>
-              {#if minPriceRecord}
-                <span class="metric-meta">Período {minPriceRecord.period} ({periodToTime(minPriceRecord.period)})</span>
-              {/if}
-            </div>
-          </div>
-
-          <div class="metric-item">
-            <span class="metric-label">
-              <span class="indicator-dot dot-rose"></span>
-              Preço Máximo
-            </span>
-            <div class="metric-value-container">
-              <span class="metric-value text-rose font-mono">
-                {maxPriceRecord ? maxPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
-              </span>
-              {#if maxPriceRecord}
-                <span class="metric-meta">Período {maxPriceRecord.period} ({periodToTime(maxPriceRecord.period)})</span>
-              {/if}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Main Visualizations Grid -->
     <section class="main-layout">
@@ -417,37 +474,110 @@
         <div class="chart-container" bind:this={chartElement}></div>
       </div>
 
-      <!-- Table Card -->
-      <div class="panel table-panel">
-        <div class="panel-header">
-          <h2>Lista de Períodos</h2>
-          <p class="panel-desc">Preço detalhado por quarto de hora</p>
-        </div>
-        <div class="table-scroll-container">
-          <table class="prices-table">
-            <thead>
-              <tr>
-                <th>Período</th>
-                <th>Hora de Início</th>
-                <th class="text-right">Preço</th>
-                <th class="text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each prices as p}
-                <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
-                  <td>{p.period}</td>
-                  <td>{periodToTime(p.period)}</td>
-                  <td class="text-right font-mono font-bold">{p.price.toFixed(2)} €/MWh</td>
-                  <td class="text-center">
-                    <span class="badge badge-price {getPriceClass(p.price)}">
-                      {getPriceLabel(p.price)}
-                    </span>
-                  </td>
+      <!-- Bottom Layout: Table and Summary -->
+      <div class="details-grid">
+        <!-- Table Card -->
+        <div class="panel table-panel">
+          <div class="panel-header">
+            <h2>Lista de Períodos</h2>
+            <p class="panel-desc">Preço detalhado por quarto de hora</p>
+          </div>
+          <div class="table-scroll-container">
+            <table class="prices-table">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th>Hora de Início</th>
+                  <th class="text-right">Preço</th>
+                  <th class="text-center">Estado</th>
                 </tr>
-              {/each}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {#each prices as p}
+                  <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
+                    <td>{p.period}</td>
+                    <td>{periodToTime(p.period)}</td>
+                    <td class="text-right font-mono font-bold">{p.price.toFixed(2)} €/MWh</td>
+                    <td class="text-center">
+                      <span class="badge badge-price {getPriceClass(p.price)}">
+                        {getPriceLabel(p.price)}
+                      </span>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Summary Panel -->
+        <div class="panel summary-panel">
+          <div class="card-glow glow-amber"></div>
+          <div class="panel-header">
+            <h2>Resumo do Dia</h2>
+            <p class="panel-desc">Principais métricas de preços de hoje</p>
+          </div>
+          <div class="metrics-list">
+            <div class="metric-item">
+              <span class="metric-label">
+                <span class="indicator-dot dot-cyan"></span>
+                Preço Atual
+                {#if isSelectedDateToday}
+                  <span class="stat-badge badge-cyan" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; margin-left: 0.25rem;">Live</span>
+                {/if}
+              </span>
+              <div class="metric-value-container">
+                <span class="metric-value text-cyan font-mono">
+                  {isSelectedDateToday && currentPriceRecord ? currentPriceRecord.price.toFixed(2) : '--.--'} <span class="unit">€/MWh</span>
+                </span>
+                {#if isSelectedDateToday && currentPriceRecord}
+                  <span class="metric-meta">Período {currentPriceRecord.period} ({periodToTime(currentPriceRecord.period)})</span>
+                {:else}
+                  <span class="metric-meta">Período atual indisponível</span>
+                {/if}
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">
+                <span class="indicator-dot dot-amber"></span>
+                Preço Médio
+              </span>
+              <span class="metric-value font-mono">
+                {averagePrice.toFixed(2)} <span class="unit">€/MWh</span>
+              </span>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">
+                <span class="indicator-dot dot-green"></span>
+                Preço Mínimo
+              </span>
+              <div class="metric-value-container">
+                <span class="metric-value text-green font-mono">
+                  {minPriceRecord ? minPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
+                </span>
+                {#if minPriceRecord}
+                  <span class="metric-meta">Período {minPriceRecord.period} ({periodToTime(minPriceRecord.period)})</span>
+                {/if}
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <span class="metric-label">
+                <span class="indicator-dot dot-rose"></span>
+                Preço Máximo
+              </span>
+              <div class="metric-value-container">
+                <span class="metric-value text-rose font-mono">
+                  {maxPriceRecord ? maxPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
+                </span>
+                {#if maxPriceRecord}
+                  <span class="metric-meta">Período {maxPriceRecord.period} ({periodToTime(maxPriceRecord.period)})</span>
+                {/if}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -458,13 +588,11 @@
     {#if apiStatus}
       <div class="status-indicator">
         <span class="status-dot"></span>
-        <span>Banco de Dados: <strong>{apiStatus.database.totalRecords}</strong> registos</span>
-        <span class="separator">|</span>
         <span>Período Disponível: <strong>{apiStatus.database.minDate}</strong> a <strong>{apiStatus.database.maxDate}</strong></span>
       </div>
     {/if}
     <div class="credits">
-      Desenvolvido para Coolify • Fonte de dados oficial OMIE
+      Desenvolvido por Emanuel Saramago • <a href="https://github.com/esaramago/omie-prices" target="_blank" rel="noopener noreferrer">Repositório GitHub</a> • Fonte de dados oficial OMIE
     </div>
   </footer>
 </main>
@@ -608,29 +736,6 @@
   }
 
   /* Stats Grid */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .stat-card {
-    position: relative;
-    background: rgba(20, 26, 40, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 18px;
-    padding: 1.5rem;
-    overflow: hidden;
-    backdrop-filter: blur(16px);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.4);
-    border-color: rgba(255, 255, 255, 0.12);
-  }
-
   .card-glow {
     position: absolute;
     top: -50px;
@@ -648,21 +753,6 @@
   .glow-green { background: #10b981; }
   .glow-rose { background: #f43f5e; }
 
-  .stat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-  }
-
-  .stat-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
   .stat-badge {
     font-size: 0.75rem;
     font-weight: 700;
@@ -672,39 +762,11 @@
   }
 
   .badge-cyan { background: rgba(0, 242, 254, 0.1); color: #00f2fe; }
-  .badge-amber { background: rgba(251, 191, 36, 0.1); color: #fbbf24; }
-  .badge-green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-  .badge-rose { background: rgba(244, 63, 94, 0.1); color: #f43f5e; }
-
-  .stat-value {
-    font-size: 2.2rem;
-    font-weight: 800;
-    line-height: 1.1;
-    display: flex;
-    align-items: baseline;
-    gap: 0.3rem;
-  }
-
-  .stat-value .unit {
-    font-size: 1rem;
-    font-weight: 500;
-    color: #475569;
-  }
-
-  .stat-footer {
-    margin-top: 1rem;
-    font-size: 0.8rem;
-    color: #64748b;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-    padding-top: 0.75rem;
-  }
 
   .text-green { color: #10b981; }
   .text-rose { color: #f43f5e; }
+  .text-cyan { color: #00f2fe; }
 
-  .highlight-pulse {
-    animation: stat-pulse 3s infinite alternate;
-  }
 
   /* Metrics List in combined card */
   .metrics-list {
@@ -741,6 +803,11 @@
     height: 8px;
     border-radius: 50%;
     display: inline-block;
+  }
+
+  .dot-cyan {
+    background: #00f2fe;
+    box-shadow: 0 0 6px #00f2fe;
   }
 
   .dot-amber {
@@ -780,16 +847,37 @@
     color: #64748b;
   }
 
-  @keyframes stat-pulse {
-    0% { border-color: rgba(255, 255, 255, 0.06); }
-    100% { border-color: rgba(0, 242, 254, 0.25); }
-  }
 
   /* Main Layout */
   .main-layout {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1.5rem;
+  }
+
+  /* Details Grid (Table & Summary side-by-side on desktop) */
+  .details-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .summary-panel {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  }
+
+  .summary-panel:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  @media (min-width: 1024px) {
+    .details-grid {
+      grid-template-columns: 2fr 1fr;
+    }
   }
 
   /* Panels */
@@ -1042,6 +1130,9 @@
 
   .credits {
     font-weight: 500;
+    > a {
+      color: inherit;
+    }
   }
 
   @media (max-width: 640px) {
