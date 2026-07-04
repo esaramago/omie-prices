@@ -1,0 +1,32 @@
+# Keep node_modules on host from being copied into the container
+**/node_modules/
+
+# Ignore git folder
+.git
+.gitignore
+
+# Ignore Docker files
+.dockerignore
+Dockerfile
+
+# Ignore local databases and SQLite files
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.db-journal
+
+# Ignore local frontend build folders
+frontend/build/
+frontend/.svelte-kit/
+
+# Ignore env files and configs
+.env
+.env.*
+.vscode/
+.idea/
+
+# Ignore documentation and logs
+README.md
+**/*.log
+npm-debug.log*
+.node/
