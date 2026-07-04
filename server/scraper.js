@@ -38,8 +38,13 @@ export async function fetchPricesForDate(dateStr) {
   
   console.log(`[Scraper] Fetching OMIE data for ${dateStr} from: ${url}`);
   
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       if (response.status === 404) {
         console.warn(`[Scraper] File not found (404) for date ${dateStr}. It may not be published yet.`);
@@ -104,7 +109,12 @@ export async function fetchPricesForDate(dateStr) {
     console.log(`[Scraper] Parsed ${records.length} records for ${dateStr}.`);
     return records;
   } catch (error) {
-    console.error(`[Scraper] Failed to fetch/parse data for ${dateStr}:`, error);
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      console.error(`[Scraper] Request for date ${dateStr} timed out after 10 seconds.`);
+    } else {
+      console.error(`[Scraper] Failed to fetch/parse data for ${dateStr}:`, error);
+    }
     return [];
   }
 }

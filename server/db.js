@@ -3,13 +3,39 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = process.env.DB_PATH || path.join(__dirname, 'omie_prices.db');
 
-console.log(`Connecting to SQLite database at: ${dbPath}`);
+// Validação do DB_PATH para evitar path traversal
+let dbPath = process.env.DB_PATH;
+if (dbPath) {
+  const normalized = path.normalize(dbPath);
+  // Garante que o path é absoluto e está dentro de /data ou do diretório do projeto
+  if (!normalized.startsWith('/data/') && !normalized.startsWith(path.join(__dirname, ''))) {
+    console.warn(`[DB] Invalid DB_PATH: ${dbPath}. Falling back to default.`);
+    dbPath = undefined;
+  }
+}
+dbPath = dbPath || path.join(__dirname, 'omie_prices.db');
+
+console.log(`[DB] Connecting to SQLite database at: ${dbPath}`);
 const db = new Database(dbPath);
 
-// Enable WAL mode for better concurrency
+// Enable WAL mode for better concurrency, set synchronous to NORMAL, and set busy_timeout to prevent SQLITE_BUSY
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 5000');
+db.pragma('foreign_keys = ON');
+db.pragma('temp_store = MEMORY');
+
+// Verificação de integridade da base de dados
+try {
+  const integrity = db.pragma('integrity_check', [], { simple: true });
+  if (integrity !== 'ok') {
+    console.error('[DB] Integrity check failed:', integrity);
+    db.pragma('recover'); // Tenta recuperar (SQLite 3.38+)
+  }
+} catch (err) {
+  console.error('[DB] Integrity check error:', err);
+}
 
 // Initialize database schema
 db.exec(`
@@ -21,7 +47,22 @@ db.exec(`
     PRIMARY KEY (date, period, country)
   );
   CREATE INDEX IF NOT EXISTS idx_omie_prices_date ON omie_prices(date);
+  CREATE INDEX IF NOT EXISTS idx_omie_prices_country ON omie_prices(country);
 `);
+
+/**
+ * Valida se um registo é válido
+ * @param {object} record 
+ * @returns {boolean}
+ */
+function isValidRecord(record) {
+  if (!record || typeof record !== 'object') return false;
+  if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date)) return false;
+  if (typeof record.period !== 'number' || record.period < 1 || record.period > 96) return false;
+  if (!['PT', 'ES'].includes(record.country)) return false;
+  if (typeof record.price !== 'number' || isNaN(record.price)) return false;
+  return true;
+}
 
 /**
  * Inserts a list of price records in a single transaction.
@@ -36,6 +77,10 @@ export function insertPrices(records) {
   const transaction = db.transaction((rows) => {
     let inserted = 0;
     for (const row of rows) {
+      if (!isValidRecord(row)) {
+        console.warn('[DB] Invalid record skipped:', row);
+        continue;
+      }
       const result = insertStmt.run(row.date, row.period, row.country, row.price);
       if (result.changes > 0) {
         inserted++;
@@ -100,3 +145,32 @@ export function getDbStats() {
     maxDate: dates.maxDate || null
   };
 }
+
+/**
+ * Closes the SQLite database connection.
+ */
+export function closeDb() {
+  if (db) {
+    console.log('[Database] Closing SQLite database connection...');
+    try {
+      db.close();
+    } catch (err) {
+      console.error('[Database] Error closing database:', err);
+    }
+  }
+}
+
+// Handlers para fecho seguro em caso de crash
+process.on('exit', () => closeDb());
+process.on('SIGINT', () => process.exit());
+process.on('SIGTERM', () => process.exit());
+process.on('uncaughtException', (err) => {
+  console.error('[Database] Uncaught Exception:', err);
+  closeDb();
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[Database] Unhandled Rejection:', err);
+  closeDb();
+  process.exit(1);
+});

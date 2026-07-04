@@ -5,9 +5,6 @@
 .git
 .gitignore
 
-# Ignore Docker files
-.dockerignore
-Dockerfile
 
 # Ignore local databases and SQLite files
 **/*.db
@@ -26,7 +23,7 @@ frontend/.svelte-kit/
 .idea/
 
 # Ignore documentation and logs
-README.md
 **/*.log
+*.log
 npm-debug.log*
 .node/
