@@ -12,6 +12,9 @@
   let chartElement = $state(null);
   let chart = null;
 
+  // Chart View Mode: 'hourly' or 'quarterly'
+  let chartViewMode = $state('hourly');
+
   // Helpers
   function periodToTime(period) {
     const totalMinutes = (period - 1) * 15;
@@ -30,7 +33,24 @@
     return Math.min(Math.max(period, 1), 96);
   }
 
-  // Derived Values
+  // Derived state: aggregate 15-minute periods into hourly averages for the chart
+  const hourlyPrices = $derived.by(() => {
+    if (prices.length === 0) return [];
+    const hourly = [];
+    for (let h = 0; h < 24; h++) {
+      const hourPeriods = prices.filter(p => Math.floor((p.period - 1) / 4) === h);
+      if (hourPeriods.length > 0) {
+        const avgPrice = hourPeriods.reduce((sum, p) => sum + p.price, 0) / hourPeriods.length;
+        hourly.push({
+          price: avgPrice,
+          time: `${String(h).padStart(2, '0')}:00`
+        });
+      }
+    }
+    return hourly;
+  });
+
+  // Derived Values (using raw 15-minute prices)
   const averagePrice = $derived(
     prices.length > 0
       ? prices.reduce((sum, p) => sum + p.price, 0) / prices.length
@@ -105,12 +125,16 @@
   // Chart Rendering effect
   $effect(() => {
     if (prices.length > 0 && chartElement) {
-      const seriesData = prices.map((p) => p.price);
-      const categories = prices.map((p) => periodToTime(p.period));
+      const displayData = chartViewMode === 'hourly' ? hourlyPrices : prices.map(p => ({
+        price: p.price,
+        time: periodToTime(p.period)
+      }));
+      const seriesData = displayData.map((p) => p.price);
+      const categories = displayData.map((p) => p.time);
 
       const options = {
         chart: {
-          type: 'area',
+          type: 'bar',
           height: 350,
           fontFamily: 'Outfit, sans-serif',
           toolbar: { show: false },
@@ -118,23 +142,31 @@
           background: 'transparent'
         },
         theme: { mode: 'dark' },
-        stroke: { curve: 'smooth', width: 3, colors: ['#00f2fe'] },
+        plotOptions: {
+          bar: {
+            horizontal: false,
+            columnWidth: '70%',
+            borderRadius: 6,
+            borderRadiusApplication: 'end'
+          }
+        },
+        dataLabels: {
+          enabled: false
+        },
+        colors: ['#00f2fe'],
+        stroke: { show: false },
         fill: {
           type: 'gradient',
           gradient: {
-            shadeIntensity: 1,
-            opacityFrom: 0.45,
-            opacityTo: 0.05,
-            stops: [0, 100],
-            colorStops: [
-              { offset: 0, color: '#00f2fe', opacity: 0.4 },
-              { offset: 100, color: '#00f2fe', opacity: 0.02 }
-            ]
+            shade: 'dark',
+            type: 'vertical',
+            shadeIntensity: 0.5,
+            gradientToColors: ['#4facfe'],
+            inverseColors: false,
+            opacityFrom: 0.85,
+            opacityTo: 0.2,
+            stops: [0, 100]
           }
-        },
-        markers: {
-          size: 0,
-          hover: { size: 6 }
         },
         series: [
           {
@@ -297,55 +329,53 @@
         </div>
       </div>
 
-      <!-- Stat 2: Average Price -->
+      <!-- Stat 2: Resumo do Dia -->
       <div class="stat-card">
         <div class="card-glow glow-amber"></div>
         <div class="stat-header">
-          <span class="stat-label">Preço Médio</span>
-          <span class="stat-badge badge-amber">Dia</span>
+          <span class="stat-label">Resumo do Dia</span>
+          <span class="stat-badge badge-amber">Métricas</span>
         </div>
-        <div class="stat-value">
-          {averagePrice.toFixed(2)}
-          <span class="unit">€/MWh</span>
-        </div>
-        <div class="stat-footer">
-          <span>Média calculada sobre {prices.length} períodos</span>
-        </div>
-      </div>
+        <div class="metrics-list">
+          <div class="metric-item">
+            <span class="metric-label">
+              <span class="indicator-dot dot-amber"></span>
+              Preço Médio
+            </span>
+            <span class="metric-value font-mono">
+              {averagePrice.toFixed(2)} <span class="unit">€/MWh</span>
+            </span>
+          </div>
 
-      <!-- Stat 3: Min Price -->
-      <div class="stat-card">
-        <div class="card-glow glow-green"></div>
-        <div class="stat-header">
-          <span class="stat-label">Preço Mínimo</span>
-          <span class="stat-badge badge-green">Cheapest</span>
-        </div>
-        <div class="stat-value text-green">
-          {minPriceRecord ? minPriceRecord.price.toFixed(2) : '0.00'}
-          <span class="unit">€/MWh</span>
-        </div>
-        <div class="stat-footer">
-          {#if minPriceRecord}
-            <span>Período {minPriceRecord.period} ({periodToTime(minPriceRecord.period)})</span>
-          {/if}
-        </div>
-      </div>
+          <div class="metric-item">
+            <span class="metric-label">
+              <span class="indicator-dot dot-green"></span>
+              Preço Mínimo
+            </span>
+            <div class="metric-value-container">
+              <span class="metric-value text-green font-mono">
+                {minPriceRecord ? minPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
+              </span>
+              {#if minPriceRecord}
+                <span class="metric-meta">Período {minPriceRecord.period} ({periodToTime(minPriceRecord.period)})</span>
+              {/if}
+            </div>
+          </div>
 
-      <!-- Stat 4: Max Price -->
-      <div class="stat-card">
-        <div class="card-glow glow-rose"></div>
-        <div class="stat-header">
-          <span class="stat-label">Preço Máximo</span>
-          <span class="stat-badge badge-rose">Peak</span>
-        </div>
-        <div class="stat-value text-rose">
-          {maxPriceRecord ? maxPriceRecord.price.toFixed(2) : '0.00'}
-          <span class="unit">€/MWh</span>
-        </div>
-        <div class="stat-footer">
-          {#if maxPriceRecord}
-            <span>Período {maxPriceRecord.period} ({periodToTime(maxPriceRecord.period)})</span>
-          {/if}
+          <div class="metric-item">
+            <span class="metric-label">
+              <span class="indicator-dot dot-rose"></span>
+              Preço Máximo
+            </span>
+            <div class="metric-value-container">
+              <span class="metric-value text-rose font-mono">
+                {maxPriceRecord ? maxPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
+              </span>
+              {#if maxPriceRecord}
+                <span class="metric-meta">Período {maxPriceRecord.period} ({periodToTime(maxPriceRecord.period)})</span>
+              {/if}
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -354,9 +384,35 @@
     <section class="main-layout">
       <!-- Chart Card -->
       <div class="panel chart-panel">
-        <div class="panel-header">
-          <h2>Curva de Preço Intradiária</h2>
-          <p class="panel-desc">Evolução do preço em intervalos de 15 minutos ao longo das 24 horas</p>
+        <div class="panel-header chart-header-row">
+          <div>
+            <h2>Curva de Preço Intradiária</h2>
+            <p class="panel-desc">
+              {#if chartViewMode === 'hourly'}
+                Evolução do preço médio horário ao longo das 24 horas
+              {:else}
+                Evolução do preço em intervalos de 15 minutos ao longo das 24 horas
+              {/if}
+            </p>
+          </div>
+          
+          <!-- Granularity Toggle -->
+          <div class="segmented-control control-small">
+            <button 
+              class="control-btn btn-small" 
+              class:active={chartViewMode === 'hourly'} 
+              onclick={() => chartViewMode = 'hourly'}
+            >
+              Hora a Hora
+            </button>
+            <button 
+              class="control-btn btn-small" 
+              class:active={chartViewMode === 'quarterly'} 
+              onclick={() => chartViewMode = 'quarterly'}
+            >
+              15 Minutos
+            </button>
+          </div>
         </div>
         <div class="chart-container" bind:this={chartElement}></div>
       </div>
@@ -490,6 +546,25 @@
     border-radius: 12px;
     display: flex;
     border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .chart-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .control-small {
+    padding: 0.15rem;
+    border-radius: 8px;
+  }
+
+  .btn-small {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
   }
 
   .control-btn {
@@ -631,6 +706,80 @@
     animation: stat-pulse 3s infinite alternate;
   }
 
+  /* Metrics List in combined card */
+  .metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .metric-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .metric-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .metric-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    font-weight: 500;
+  }
+
+  .indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .dot-amber {
+    background: #fbbf24;
+    box-shadow: 0 0 6px #fbbf24;
+  }
+
+  .dot-green {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  .dot-rose {
+    background: #f43f5e;
+    box-shadow: 0 0 6px #f43f5e;
+  }
+
+  .metric-value-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .metric-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+
+  .metric-value .unit {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #475569;
+  }
+
+  .metric-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+
   @keyframes stat-pulse {
     0% { border-color: rgba(255, 255, 255, 0.06); }
     100% { border-color: rgba(0, 242, 254, 0.25); }
@@ -639,14 +788,8 @@
   /* Main Layout */
   .main-layout {
     display: grid;
-    grid-template-columns: 3fr 2fr;
+    grid-template-columns: 1fr;
     gap: 1.5rem;
-  }
-
-  @media (max-width: 1024px) {
-    .main-layout {
-      grid-template-columns: 1fr;
-    }
   }
 
   /* Panels */
