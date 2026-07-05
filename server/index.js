@@ -34,7 +34,7 @@ app.use(
 
 app.use(express.json({ limit: '10kb' }));
 
-// CORS restrito - apenas origens permitidas
+// Restricted CORS - allowed origins only
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'],
   optionsSuccessStatus: 200,
@@ -94,7 +94,7 @@ app.get('/api/prices', (req, res) => {
         return res.status(400).json({ error: 'Start date cannot be after end date.' });
       }
       const diffDays = Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24));
-      // Limitar a 90 dias para evitar sobrecarga
+      // Limit to 90 days to avoid overload
       if (diffDays > 90) {
         return res.status(400).json({ error: 'Date range cannot exceed 90 days.' });
       }
@@ -129,7 +129,7 @@ app.get('/api/status', (req, res) => {
 // API Key Authentication Middleware for administrative actions
 const SCRAPE_API_KEY = process.env.SCRAPE_API_KEY;
 
-// Validação da API key - deve ter pelo menos 32 caracteres
+// API key validation - must be at least 32 characters
 if (!SCRAPE_API_KEY || SCRAPE_API_KEY.length < 32) {
   console.error('[SECURITY ERROR] SCRAPE_API_KEY is missing or invalid. Shutting down.');
   process.exit(1);
@@ -213,12 +213,12 @@ app.use((err, req, res, next) => {
     return res.status(400).json({ error: 'Invalid JSON payload.' });
   }
 
-  // Em produção, não expor detalhes do erro
+  // In production, do not expose error details
   const errorResponse = {
     error: 'Internal Server Error'
   };
   
-  // Em desenvolvimento, incluir detalhes para debug
+  // In development, include details for debugging
   if (process.env.NODE_ENV === 'development') {
     errorResponse.details = err.message;
   }

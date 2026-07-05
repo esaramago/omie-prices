@@ -1,15 +1,15 @@
 # OMIE Energy Monitor & Dashboard
 
-Aplicação integrada de contêiner único contendo um Scraper de preços de energia da OMIE (Ibérico), uma API em Node.js (Express + SQLite) e um painel interativo em SvelteKit (Svelte 5 + CSS Vanilla + ApexCharts).
+Integrated single-container application containing an OMIE (Iberian) energy price Scraper, a Node.js API (Express + SQLite), and an interactive panel in SvelteKit (Svelte 5 + Vanilla CSS + ApexCharts).
 
-## 🚀 Como Executar Localmente
+## 🚀 How to Run Locally
 
-### Pré-requisitos
-- Node.js (versão 22.12.0 ou superior recomendada)
+### Prerequisites
+- Node.js (version 22.12.0 or higher recommended)
 - NPM
 
-### 1. Servidor Backend & Scraper
-O backend Express gere a base de dados SQLite e realiza a sincronização diária com o portal da OMIE.
+### 1. Backend Server & Scraper
+The Express backend manages the SQLite database and performs daily synchronization with the OMIE portal.
 
 ```bash
 cd server
@@ -17,55 +17,55 @@ npm install
 npm start
 ```
 
-- A API estará disponível em `http://localhost:3000`.
-- Na primeira execução, o scraper irá descarregar automaticamente os dados históricos desde `01/06/2026` até ao dia atual (este processo pode demorar alguns segundos).
-- Um cron job interno está configurado para obter novos preços automaticamente de hora a hora.
+- The API will be available at `http://localhost:3000`.
+- On the first run, the scraper will automatically download historical data from `2026-06-01` to the current day (this process may take a few seconds).
+- An internal cron job is configured to fetch new prices automatically every hour.
 
-### 2. Painel Frontend (SvelteKit)
-O frontend consome a API local e disponibiliza um dashboard interativo moderno.
+### 2. Frontend Panel (SvelteKit)
+The frontend consumes the local API and provides a modern interactive dashboard.
 
-#### Modo de Desenvolvimento (Hot Reload):
+#### Development Mode (Hot Reload):
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Acesse `http://localhost:5173`. Configure a API para apontar para `http://localhost:3000` (através de proxy do Vite ou requisições relativas).
+Access `http://localhost:5173`. Configure the API to point to `http://localhost:3000` (via Vite proxy or relative requests).
 
-#### Compilar para Produção (SPA Estático):
-Para que o Express sirva a interface compilada (contêiner único):
+#### Build for Production (Static SPA):
+To let Express serve the compiled interface (single container):
 ```bash
 cd frontend
 npm run build
 ```
-O SvelteKit irá compilar a aplicação SPA para o diretório `frontend/build`, que é a pasta pública servida pelo servidor Express do backend.
+SvelteKit will compile the SPA application to the `frontend/build` directory, which is the public folder served by the backend Express server.
 
 ---
 
-## 🔌 Documentação da API
+## 🔌 API Documentation
 
-A API integrada expõe endpoints estruturados para consulta de preços de eletricidade da OMIE e gerenciamento de dados:
+The integrated API exposes structured endpoints for querying OMIE electricity prices and data management:
 
-- **`GET /api/prices`**: Retorna a série temporal de preços filtrados por data e país (`PT` / `ES`).
-- **`GET /api/status`**: Retorna o estado do servidor e estatísticas de contagem de dados da base de dados.
-- **`POST /api/scrape/trigger`**: Dispara uma rotina manual em segundo plano para extrair dados da OMIE para um intervalo de datas.
+- **`GET /api/prices`**: Returns the time series of prices filtered by date and country (`PT` / `ES`).
+- **`GET /api/status`**: Returns the server status and data count statistics of the database.
+- **`POST /api/scrape/trigger`**: Triggers a manual background routine to extract OMIE data for a date range.
 
-Para detalhes completos sobre formatos de dados, autenticação de administrador, restrições e limites de requisição (Rate Limiting), consulte a [Documentação da API (API.md)](API.md).
+For full details on data formats, admin authentication, restrictions, and rate limits (Rate Limiting), see the [API Documentation (API.md)](API.md).
 
 ---
 
-## 🐳 Produção & Deploy com Docker (Coolify)
+## 🐳 Production & Deploy with Docker (Coolify)
 
-Este projeto está pronto a ser implantado de forma simples em qualquer servidor Coolify (ou Docker):
+This project is ready to be easily deployed on any Coolify (or Docker) server:
 
-1. O Dockerfile na raiz realiza um build multi-stage:
-   - **Stage 1:** Instala e compila o frontend SvelteKit estático.
-   - **Stage 2:** Instala dependências do backend Express, copia os ficheiros compilados do frontend para servir na porta `3000` e configura o ambiente.
-2. **Volumes Persistentes (Crucial):**
-   - O banco de dados SQLite é persistido em `/data/omie_prices.db` dentro do contêiner.
-   - Configure um volume montando `/data` no Coolify (ex: `omie-data:/data`) para garantir que os dados não sejam limpos durante reinstalações ou reinicializações do contêiner.
+1. The Dockerfile in the root performs a multi-stage build:
+   - **Stage 1:** Installs and compiles the static SvelteKit frontend.
+   - **Stage 2:** Installs Express backend dependencies, copies the compiled frontend files to be served on port `3000`, and configures the environment.
+2. **Persistent Volumes (Crucial):**
+   - The SQLite database is persisted in `/data/omie_prices.db` inside the container.
+   - Configure a volume mounting `/data` in Coolify (e.g., `omie-data:/data`) to ensure data is not lost during container reinstalls or restarts.
 
-Para testar o build Docker localmente:
+To test the Docker build locally:
 ```bash
 docker build -t omie-dashboard .
 docker run -p 3000:3000 -v $(pwd)/data:/data omie-dashboard

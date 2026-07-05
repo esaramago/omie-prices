@@ -4,11 +4,11 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Validação do DB_PATH para evitar path traversal
+// DB_PATH validation to prevent path traversal
 let dbPath = process.env.DB_PATH;
 if (dbPath) {
   const normalized = path.normalize(dbPath);
-  // Garante que o path é absoluto e está dentro de /data ou do diretório do projeto
+  // Ensures the path is absolute and is inside /data or the project directory
   if (!normalized.startsWith('/data/') && !normalized.startsWith(path.join(__dirname, ''))) {
     console.warn(`[DB] Invalid DB_PATH: ${dbPath}. Falling back to default.`);
     dbPath = undefined;
@@ -26,12 +26,12 @@ db.pragma('busy_timeout = 5000');
 db.pragma('foreign_keys = ON');
 db.pragma('temp_store = MEMORY');
 
-// Verificação de integridade da base de dados
+// Database integrity check
 try {
   const integrity = db.pragma('integrity_check', { simple: true });
   if (integrity !== 'ok') {
     console.error('[DB] Integrity check failed:', integrity);
-    db.pragma('recover'); // Tenta recuperar (SQLite 3.38+)
+    db.pragma('recover'); // Attempts to recover (SQLite 3.38+)
   }
 } catch (err) {
   console.error('[DB] Integrity check error:', err);
@@ -51,7 +51,7 @@ db.exec(`
 `);
 
 /**
- * Valida se um registo é válido
+ * Validates if a record is valid
  * @param {object} record 
  * @returns {boolean}
  */
@@ -160,7 +160,7 @@ export function closeDb() {
   }
 }
 
-// Handlers para fecho seguro em caso de crash
+// Handlers for graceful shutdown in case of crash
 process.on('exit', () => closeDb());
 process.on('SIGINT', () => process.exit());
 process.on('SIGTERM', () => process.exit());

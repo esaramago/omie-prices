@@ -1,52 +1,52 @@
-# 📖 Documentação da API OMIE Energy Monitor
+# 📖 OMIE Energy Monitor API Documentation
 
-Esta é a documentação da API de preços de energia da OMIE (Ibérico). O servidor é desenvolvido em Node.js usando **Express** e persistência de dados em **SQLite** (através da biblioteca `better-sqlite3`).
+This is the documentation for the OMIE (Iberian) energy price API. The server is developed in Node.js using **Express** and data persistence in **SQLite** (via the `better-sqlite3` library).
 
-A API expõe endpoints para consulta de dados históricos, estatísticas do banco de dados e ações administrativas de sincronização (scraping).
-
----
-
-## ⚙️ Configuração e Inicialização
-
-O servidor corre por padrão na porta `3000` (definida pela variável de ambiente `PORT`).
-
-### Variáveis de Ambiente (`.env`)
-- `PORT`: Porta onde o Express será executado (Padrão: `3000`).
-- `SCRAPE_API_KEY`: Chave secreta necessária para autenticar operações administrativas. Deve ter pelo menos 32 caracteres.
-- `DB_PATH`: Caminho absoluto ou relativo para a base de dados SQLite (Padrão: `server/omie_prices.db`).
-- `ALLOWED_ORIGINS`: Lista de origens separadas por vírgula para regras de CORS (Padrão: `http://localhost:5173,http://localhost:3000`).
-- `FRONTEND_BUILD_PATH`: Caminho para servir os arquivos estáticos do frontend (Padrão: `../frontend/build`).
+The API exposes endpoints to query historical data, database statistics, and administrative synchronization (scraping) actions.
 
 ---
 
-## 🔒 Segurança e Limites (Rate Limiting)
+## ⚙️ Configuration and Startup
 
-Para proteger a integridade do servidor, são aplicados limites de requisições por IP:
-- **Endpoints gerais (`/api/*`)**: Máximo de **100 requisições a cada 15 minutos** por IP.
-- **Trigger de Scraper (`/api/scrape/trigger`)**: Máximo de **5 requisições por hora** por IP.
+The server runs by default on port `3000` (defined by the `PORT` environment variable).
+
+### Environment Variables (`.env`)
+- `PORT`: Port where Express will run (Default: `3000`).
+- `SCRAPE_API_KEY`: Secret key required to authenticate administrative operations. Must have at least 32 characters.
+- `DB_PATH`: Absolute or relative path to the SQLite database (Default: `server/omie_prices.db`).
+- `ALLOWED_ORIGINS`: Comma-separated list of origins for CORS rules (Default: `http://localhost:5173,http://localhost:3000`).
+- `FRONTEND_BUILD_PATH`: Path to serve static frontend files (Default: `../frontend/build`).
 
 ---
 
-## 🚀 Endpoints da API
+## 🔒 Security and Limits (Rate Limiting)
 
-### 1. Obter Preços (`GET /api/prices`)
-Retorna uma lista de preços de eletricidade da OMIE com filtros opcionais.
+To protect server integrity, request limits per IP are applied:
+- **General Endpoints (`/api/*`)**: Maximum of **100 requests every 15 minutes** per IP.
+- **Scraper Trigger (`/api/scrape/trigger`)**: Maximum of **5 requests per hour** per IP.
+
+---
+
+## 🚀 API Endpoints
+
+### 1. Get Prices (`GET /api/prices`)
+Returns a list of OMIE electricity prices with optional filters.
 
 * **URL:** `/api/prices`
-* **Método:** `GET`
-* **Parâmetros de Consulta (Query Parameters):**
-  * `country` (Opcional): Filtra por país. Valores aceitos: `PT` (Portugal) ou `ES` (Espanha) (não diferencia maiúsculas de minúsculas).
-  * `start` (Opcional): Data de início no formato `YYYY-MM-DD`.
-  * `end` (Opcional): Data de fim no formato `YYYY-MM-DD`.
+* **Method:** `GET`
+* **Query Parameters:**
+  * `country` (Optional): Filters by country. Accepted values: `PT` (Portugal) or `ES` (Spain) (case-insensitive).
+  * `start` (Optional): Start date in `YYYY-MM-DD` format.
+  * `end` (Optional): End date in `YYYY-MM-DD` format.
 
-* **Validações e Restrições:**
-  * As datas `start` e `end` devem ser fisicamente válidas no formato `YYYY-MM-DD`.
-  * A data de início (`start`) não pode ser posterior à data de fim (`end`).
-  * O intervalo máximo de tempo entre `start` e `end` não pode exceder **90 dias** para evitar sobrecarga.
-  * O parâmetro `country` deve ser estritamente `PT` ou `ES`.
+* **Validations and Restrictions:**
+  * The `start` and `end` dates must be physically valid in `YYYY-MM-DD` format.
+  * The start date (`start`) cannot be after the end date (`end`).
+  * The maximum time range between `start` and `end` cannot exceed **90 days** to avoid overload.
+  * The `country` parameter must be strictly `PT` or `ES`.
 
-* **Resposta de Sucesso (200 OK):**
-  Retorna um array JSON de objetos ordenados por data, período e país.
+* **Success Response (200 OK):**
+  Returns a JSON array of objects ordered by date, period, and country.
   ```json
   [
     {
@@ -64,36 +64,36 @@ Retorna uma lista de preços de eletricidade da OMIE com filtros opcionais.
   ]
   ```
 
-* **Estrutura do Registro de Preço:**
-  * `date` (String): Data correspondente (`YYYY-MM-DD`).
-  * `period` (Integer): Período horários/tarifário do dia (tipicamente de `1` a `24`, mas suporta de `1` a `96`).
-  * `country` (String): Sigla do país (`PT` ou `ES`).
-  * `price` (Float): Preço marginal da eletricidade em **€/MWh** (Euros por Megawatt-hora).
+* **Price Record Structure:**
+  * `date` (String): Corresponding date (`YYYY-MM-DD`).
+  * `period` (Integer): Hourly/tariff period of the day (typically `1` to `24`, but supports `1` to `96`).
+  * `country` (String): Country abbreviation (`PT` or `ES`).
+  * `price` (Float): Marginal price of electricity in **€/MWh** (Euros per Megawatt-hour).
 
-* **Respostas de Erro:**
-  * **400 Bad Request** (Parâmetros inválidos ou intervalo maior que 90 dias):
+* **Error Responses:**
+  * **400 Bad Request** (Invalid parameters or range greater than 90 days):
     ```json
     { "error": "Invalid start date. Must be a valid date in YYYY-MM-DD format." }
     ```
-    ou
+    or
     ```json
     { "error": "Date range cannot exceed 90 days." }
     ```
-  * **429 Too Many Requests** (Limite de rate limit atingido):
+  * **429 Too Many Requests** (Rate limit reached):
     ```json
     { "error": "Too many requests from this IP, please try again after 15 minutes." }
     ```
 
 ---
 
-### 2. Estado do Servidor e Estatísticas (`GET /api/status`)
-Fornece informações em tempo real sobre a API e o volume de dados armazenados na base de dados.
+### 2. Server Status and Statistics (`GET /api/status`)
+Provides real-time information about the API and the volume of data stored in the database.
 
 * **URL:** `/api/status`
-* **Método:** `GET`
-* **Parâmetros de Consulta:** Nenhum.
+* **Method:** `GET`
+* **Query Parameters:** None.
 
-* **Resposta de Sucesso (200 OK):**
+* **Success Response (200 OK):**
   ```json
   {
     "status": "online",
@@ -106,26 +106,26 @@ Fornece informações em tempo real sobre a API e o volume de dados armazenados 
   }
   ```
 
-* **Estrutura da Resposta:**
-  * `status` (String): Estado de atividade da API (sempre `"online"` se responder).
-  * `timestamp` (String): Data e hora atuais do servidor em formato ISO.
+* **Response Structure:**
+  * `status` (String): API activity status (always `"online"` if responding).
+  * `timestamp` (String): Current server date and time in ISO format.
   * `database` (Object):
-    * `totalRecords` (Integer): Total de registos de preços armazenados na base de dados SQLite.
-    * `minDate` (String|null): Primeira data disponível na base de dados.
-    * `maxDate` (String|null): Última data disponível na base de dados.
+    * `totalRecords` (Integer): Total number of price records stored in the SQLite database.
+    * `minDate` (String|null): First date available in the database.
+    * `maxDate` (String|null): Last date available in the database.
 
 ---
 
-### 3. Disparar Scrape Manual (`POST /api/scrape/trigger`)
-Inicia de forma assíncrona um processo de importação de preços diretamente do site da OMIE para um intervalo de datas específico.
+### 3. Trigger Manual Scrape (`POST /api/scrape/trigger`)
+Asynchronously starts a price import process directly from the OMIE website for a specific date range.
 
 * **URL:** `/api/scrape/trigger`
-* **Método:** `POST`
-* **Cabeçalhos (Headers):**
+* **Method:** `POST`
+* **Headers:**
   * `Content-Type: application/json`
-  * `x-api-key`: Chave de API correspondente a `SCRAPE_API_KEY`. (Também aceita cabeçalho HTTP standard `Authorization: Bearer <API_KEY>`).
+  * `x-api-key`: API key corresponding to `SCRAPE_API_KEY`. (Also accepts standard HTTP header `Authorization: Bearer <API_KEY>`).
 
-* **Corpo da Requisição (Body - JSON):**
+* **Request Body (JSON):**
   ```json
   {
     "start": "2026-07-01",
@@ -133,32 +133,32 @@ Inicia de forma assíncrona um processo de importação de preços diretamente d
     "force": false
   }
   ```
-  * `start` (Obrigatorio): Data de início da extração (`YYYY-MM-DD`).
-  * `end` (Obrigatorio): Data de fim da extração (`YYYY-MM-DD`).
-  * `force` (Opcional, Padrão: `false`): Se for `true`, descarrega e substitui os dados existentes mesmo que já existam registos para essas datas na base de dados.
+  * `start` (Required): Extraction start date (`YYYY-MM-DD`).
+  * `end` (Required): Extraction end date (`YYYY-MM-DD`).
+  * `force` (Optional, Default: `false`): If `true`, downloads and replaces existing data even if there are already records for those dates in the database.
 
-* **Validações e Restrições:**
-  * É necessária autenticação com a chave de API correta.
-  * O intervalo máximo do scrape manual não pode exceder **31 dias (1 mês)**.
-  * O processo de scrape é executado em background para evitar bloqueio da resposta HTTP.
+* **Validations and Restrictions:**
+  * Authentication with the correct API key is required.
+  * The maximum manual scrape range cannot exceed **31 days (1 month)**.
+  * The scrape process runs in the background to avoid blocking the HTTP response.
 
-* **Resposta de Sucesso (200 OK):**
+* **Success Response (200 OK):**
   ```json
   {
     "message": "Scraper started for range 2026-07-01 to 2026-07-03."
   }
   ```
 
-* **Respostas de Erro:**
-  * **401 Unauthorized** (Chave de API inválida ou em falta):
+* **Error Responses:**
+  * **401 Unauthorized** (Invalid or missing API key):
     ```json
     { "error": "Unauthorized. Invalid or missing API key." }
     ```
-  * **400 Bad Request** (Parâmetros em falta ou intervalo maior que 31 dias):
+  * **400 Bad Request** (Missing parameters or range greater than 31 days):
     ```json
     { "error": "Manual scrape range cannot exceed 31 days (1 month)." }
     ```
-  * **429 Too Many Requests** (Mais de 5 tentativas de scrape manual por hora):
+  * **429 Too Many Requests** (More than 5 manual scrape attempts per hour):
     ```json
     { "error": "Too many manual scrape requests from this IP, please try again after an hour." }
     ```
