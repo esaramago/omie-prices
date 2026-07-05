@@ -26,7 +26,7 @@ app.use(
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], // Allowed for inline styles and Google Fonts
         fontSrc: ["'self'", "https://fonts.gstatic.com"], // Allowed for Google Fonts
         imgSrc: ["'self'", "data:"], // Allowed for self images and inline data URIs
-        connectSrc: ["'self'"] // Allowed for local API calls
+        connectSrc: ["'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"] // Allowed for local API calls and Google Fonts CSS/fonts fetched via Service Worker
       }
     }
   })

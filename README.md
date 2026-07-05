@@ -42,6 +42,18 @@ O SvelteKit irá compilar a aplicação SPA para o diretório `frontend/build`, 
 
 ---
 
+## 🔌 Documentação da API
+
+A API integrada expõe endpoints estruturados para consulta de preços de eletricidade da OMIE e gerenciamento de dados:
+
+- **`GET /api/prices`**: Retorna a série temporal de preços filtrados por data e país (`PT` / `ES`).
+- **`GET /api/status`**: Retorna o estado do servidor e estatísticas de contagem de dados da base de dados.
+- **`POST /api/scrape/trigger`**: Dispara uma rotina manual em segundo plano para extrair dados da OMIE para um intervalo de datas.
+
+Para detalhes completos sobre formatos de dados, autenticação de administrador, restrições e limites de requisição (Rate Limiting), consulte a [Documentação da API (API.md)](API.md).
+
+---
+
 ## 🐳 Produção & Deploy com Docker (Coolify)
 
 Este projeto está pronto a ser implantado de forma simples em qualquer servidor Coolify (ou Docker):
