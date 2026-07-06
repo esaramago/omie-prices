@@ -24,6 +24,7 @@ self.addEventListener('install', (event) => {
     }
   }
 
+  self.skipWaiting();
   event.waitUntil(addFilesToCache());
 });
 
@@ -36,6 +37,7 @@ self.addEventListener('activate', (event) => {
     }
   }
 
+  self.clients.claim();
   event.waitUntil(deleteOldCaches());
 });
 
