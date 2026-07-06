@@ -1,10 +1,43 @@
 <script>
   import { onMount } from 'svelte';
 
+  function detectCountry() {
+    if (typeof window === 'undefined') return 'PT';
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) {
+        if (tz.includes('Lisbon') || tz.includes('Azores') || tz.includes('Madeira')) {
+          return 'PT';
+        }
+        if (tz.includes('Madrid') || tz.includes('Ceuta') || tz.includes('Canary')) {
+          return 'ES';
+        }
+      }
+    } catch (e) {
+      // Ignore timezone read errors
+    }
+    try {
+      const lang = navigator.language || (navigator.languages && navigator.languages[0]);
+      if (lang) {
+        if (lang.startsWith('pt')) return 'PT';
+        if (lang.startsWith('es')) return 'ES';
+      }
+    } catch (e) {
+      // Ignore language read errors
+    }
+    return 'PT';
+  }
+
   // State using Svelte 5 Runes
   let selectedDate = $state(new Date().toISOString().split('T')[0]);
-  let selectedCountry = $state('PT');
-  let selectedProvider = $state('OMIE');
+  let selectedCountry = $state(
+    (typeof localStorage !== 'undefined' && localStorage.getItem('selectedCountry')) || 
+    detectCountry()
+  );
+  let selectedProvider = $state(
+    (typeof localStorage !== 'undefined' && localStorage.getItem('selectedProvider')) || 
+    'OMIE'
+  );
   let prices = $state([]);
   let loading = $state(true);
   let error = $state(null);
@@ -12,6 +45,7 @@
   
   let chartElement = $state(null);
   let chart = null;
+  let chartPromise = null;
 
   // Chart View Mode: 'hourly' or 'quarterly'
   let chartViewMode = $state('hourly');
@@ -57,7 +91,8 @@
 
   const priceUnit = $derived(selectedProvider === 'OMIE' ? '€/MWh' : '€/kWh');
   const priceDecimals = $derived(selectedProvider === 'OMIE' ? 2 : 4);
-  const labelDecimals = $derived(selectedProvider === 'OMIE' ? 1 : 4);
+  const chartDecimals = $derived(selectedProvider === 'OMIE' ? 2 : 2);
+  const labelDecimals = $derived(selectedProvider === 'OMIE' ? 1 : 2);
 
   function formatDataLabel(value, opts) {
     if (typeof value !== 'number') return '';
@@ -123,6 +158,41 @@
     selectedDate === new Date().toISOString().split('T')[0]
   );
 
+  const isWeekend = $derived.by(() => {
+    if (!selectedDate) return false;
+    const dateObj = new Date(selectedDate);
+    const day = dateObj.getDay();
+    return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+  });
+
+  const lowThresholdPercent = $derived(isWeekend ? 0.92 : 0.8);
+  const highThresholdPercent = $derived(isWeekend ? 1.08 : 1.2);
+
+  const historicalAverage = $derived.by(() => {
+    if (!apiStatus || !apiStatus.database || !apiStatus.database.historicalAverages) {
+      return null;
+    }
+    const countryAverages = apiStatus.database.historicalAverages[selectedCountry];
+    if (!countryAverages) return null;
+    
+    const baseAvg = isWeekend ? countryAverages.weekend : countryAverages.weekday;
+    
+    // Convert to Coopérnico if necessary
+    if (selectedProvider === 'Coopérnico') {
+      const k = 0.009;
+      const GO = 0.001;
+      const FP = 0.15;
+      const TAR = 0.0607;
+      const omieKwh = baseAvg / 1000;
+      return ((omieKwh + k) * (1 + FP)) + GO + TAR;
+    }
+    return baseAvg;
+  });
+
+  const comparisonAverage = $derived(
+    historicalAverage !== null ? historicalAverage : averagePrice
+  );
+
   // Fetch prices from Express API
   async function loadData() {
     loading = true;
@@ -158,6 +228,20 @@
     loadData();
   });
 
+  // Save selected provider to localStorage when it changes
+  $effect(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('selectedProvider', selectedProvider);
+    }
+  });
+
+  // Save selected country to localStorage when it changes
+  $effect(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('selectedCountry', selectedCountry);
+    }
+  });
+
   onMount(() => {
     loadStatus();
     // Refresh API status and current period calculations every 5 minutes
@@ -165,7 +249,14 @@
       loadStatus();
       currentPeriod = getCurrentPeriod();
     }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (chart) {
+        chart.destroy();
+        chart = null;
+      }
+      chartPromise = null;
+    };
   });
 
   // Chart Rendering effect
@@ -188,17 +279,21 @@
         return p.time;
       });
 
-      const baseColor = '#00f2fe';
-      const baseGradientColor = '#4facfe';
-      const highlightColor = '#fbbf24';       // amber/gold
-      const highlightGradientColor = '#f97316'; // orange
+      const colors = displayData.map((p) => {
+        const price = p.price;
+        if (price < comparisonAverage * lowThresholdPercent) return '#10b981'; // Verde (Emerald-500)
+        if (price < comparisonAverage) return '#eab308';                       // Amarelo (Yellow-500)
+        if (price < comparisonAverage * highThresholdPercent) return '#f97316'; // Laranja (Orange-500)
+        return '#ef4444';                                                 // Vermelho (Red-500)
+      });
 
-      const colors = displayData.map((_, idx) => 
-        idx === activeIdx ? highlightColor : baseColor
-      );
-      const gradientToColors = displayData.map((_, idx) => 
-        idx === activeIdx ? highlightGradientColor : baseGradientColor
-      );
+      const gradientToColors = displayData.map((p) => {
+        const price = p.price;
+        if (price < comparisonAverage * lowThresholdPercent) return '#34d399'; // Verde Claro (Emerald-400)
+        if (price < comparisonAverage) return '#facc15';                       // Amarelo Claro (Yellow-400)
+        if (price < comparisonAverage * highThresholdPercent) return '#fb923c'; // Laranja Claro (Orange-400)
+        return '#f87171';                                                 // Vermelho Claro (Red-400)
+      });
 
       const options = {
         chart: {
@@ -245,7 +340,11 @@
           formatter: formatDataLabel
         },
         colors: colors,
-        stroke: { show: false },
+        stroke: {
+          show: isSelectedDateToday && activeIdx !== -1,
+          width: 2,
+          colors: displayData.map((p, idx) => idx === activeIdx ? '#ffffff' : 'transparent')
+        },
         fill: {
           type: 'gradient',
           gradient: {
@@ -255,7 +354,7 @@
             gradientToColors: gradientToColors,
             inverseColors: false,
             opacityFrom: 0.85,
-            opacityTo: 0.2,
+            opacityTo: 0.55,
             stops: [0, 100]
           }
         },
@@ -287,7 +386,7 @@
         yaxis: {
           labels: {
             style: { colors: '#94a3b8' },
-            formatter: (value) => typeof value === 'number' ? `${value.toFixed(priceDecimals)} ${priceUnit}` : value
+            formatter: (value) => typeof value === 'number' ? `${value.toFixed(chartDecimals)} ${priceUnit}` : value
           }
         },
         grid: {
@@ -336,7 +435,7 @@
                 labels: {
                   rotate: 0,
                   style: { colors: '#94a3b8', fontSize: '11px' },
-                  formatter: (value) => typeof value === 'number' ? `${value.toFixed(priceDecimals)} ${priceUnit}` : value
+                  formatter: (value) => typeof value === 'number' ? `${value.toFixed(chartDecimals)} ${priceUnit}` : value
                 }
               },
               yaxis: {
@@ -358,10 +457,15 @@
 
       if (chart) {
         chart.updateOptions(options);
-      } else {
-        import('apexcharts').then(({ default: ApexCharts }) => {
+      } else if (!chartPromise) {
+        chartPromise = import('apexcharts').then(({ default: ApexCharts }) => {
           chart = new ApexCharts(chartElement, options);
           chart.render();
+          return chart;
+        });
+      } else {
+        chartPromise.then((instance) => {
+          instance.updateOptions(options);
         });
       }
     } else {
@@ -369,19 +473,22 @@
         chart.destroy();
         chart = null;
       }
+      chartPromise = null;
     }
   });
 
   function getPriceClass(price) {
-    if (price < averagePrice * 0.9) return 'cheap';
-    if (price > averagePrice * 1.1) return 'expensive';
-    return 'normal';
+    if (price < comparisonAverage * lowThresholdPercent) return 'cheap';
+    if (price < comparisonAverage) return 'moderate-cheap';
+    if (price < comparisonAverage * highThresholdPercent) return 'moderate-expensive';
+    return 'expensive';
   }
 
   function getPriceLabel(price) {
-    if (price < averagePrice * 0.9) return 'Barato';
-    if (price > averagePrice * 1.1) return 'Caro';
-    return 'Normal';
+    if (price < comparisonAverage * lowThresholdPercent) return 'Barato';
+    if (price < comparisonAverage) return 'Moderado';
+    if (price < comparisonAverage * highThresholdPercent) return 'Caro';
+    return 'Muito caro';
   }
 </script>
 
@@ -580,6 +687,18 @@
                 {/if}
               </div>
             </div>
+
+            {#if historicalAverage !== null}
+              <div class="metric-item">
+                <span class="metric-label">
+                  <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;"></span>
+                  Média Histórica ({isWeekend ? 'Fim de Semana' : 'Dia Útil'})
+                </span>
+                <span class="metric-value font-mono" style="color: #38bdf8;">
+                  {historicalAverage.toFixed(priceDecimals)} <span class="unit">{priceUnit}</span>
+                </span>
+              </div>
+            {/if}
           </div>
         </div>
         <!-- Table Card -->
@@ -602,7 +721,7 @@
                 {#each processedPrices as p}
                   <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
                     <td>{p.period}</td>
-                    <td>{periodToTime(p.period)}</td>
+                    <td>{periodToTime(p.period)} {isSelectedDateToday && p.period === currentPeriod ? '(Atual)' : ''}</td>
                     <td class="text-right font-mono font-bold">{p.price.toFixed(priceDecimals)} {priceUnit}</td>
                     <td class="text-center">
                       <span class="badge badge-price {getPriceClass(p.price)}">
@@ -674,7 +793,6 @@
   .logo-icon {
     font-size: 2.2rem;
     background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-    -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     filter: drop-shadow(0 0 8px rgba(0, 242, 254, 0.4));
   }
@@ -922,27 +1040,17 @@
 
   /* Details Grid (Table & Summary side-by-side on desktop) */
   .details-grid {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
     gap: 1.5rem;
+    > * {
+      flex: 1;
+    }
   }
 
   .summary-panel {
     position: relative;
     overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-  }
-
-  .summary-panel:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.4);
-    border-color: rgba(255, 255, 255, 0.12);
-  }
-
-  @media (min-width: 1024px) {
-    .details-grid {
-      grid-template-columns: 2fr 1fr;
-    }
   }
 
   /* Panels */
@@ -1059,16 +1167,22 @@
     border: 1px solid rgba(16, 185, 129, 0.2);
   }
 
-  .badge-price.normal {
-    background: rgba(71, 85, 105, 0.2);
-    color: #94a3b8;
-    border: 1px solid rgba(71, 85, 105, 0.3);
+  .badge-price.moderate-cheap {
+    background: rgba(234, 179, 8, 0.12);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.2);
+  }
+
+  .badge-price.moderate-expensive {
+    background: rgba(249, 115, 22, 0.12);
+    color: #fb923c;
+    border: 1px solid rgba(249, 115, 22, 0.2);
   }
 
   .badge-price.expensive {
-    background: rgba(244, 63, 94, 0.12);
-    color: #fb7185;
-    border: 1px solid rgba(244, 63, 94, 0.2);
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.2);
   }
 
   /* Alerts */

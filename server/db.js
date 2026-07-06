@@ -139,10 +139,40 @@ export function getRecordCountForDate(date) {
 export function getDbStats() {
   const totalCount = db.prepare('SELECT COUNT(*) as count FROM omie_prices').get().count;
   const dates = db.prepare('SELECT MIN(date) as minDate, MAX(date) as maxDate FROM omie_prices').get();
+  
+  // Calculate global historical averages for weekdays (Mon-Fri) and weekends (Sat-Sun)
+  const PT_weekday = db.prepare(`
+    SELECT AVG(price) as avgPrice 
+    FROM omie_prices 
+    WHERE country = 'PT' AND strftime('%w', date) NOT IN ('0', '6')
+  `).get()?.avgPrice || 0;
+
+  const PT_weekend = db.prepare(`
+    SELECT AVG(price) as avgPrice 
+    FROM omie_prices 
+    WHERE country = 'PT' AND strftime('%w', date) IN ('0', '6')
+  `).get()?.avgPrice || 0;
+
+  const ES_weekday = db.prepare(`
+    SELECT AVG(price) as avgPrice 
+    FROM omie_prices 
+    WHERE country = 'ES' AND strftime('%w', date) NOT IN ('0', '6')
+  `).get()?.avgPrice || 0;
+
+  const ES_weekend = db.prepare(`
+    SELECT AVG(price) as avgPrice 
+    FROM omie_prices 
+    WHERE country = 'ES' AND strftime('%w', date) IN ('0', '6')
+  `).get()?.avgPrice || 0;
+
   return {
     totalRecords: totalCount,
     minDate: dates.minDate || null,
-    maxDate: dates.maxDate || null
+    maxDate: dates.maxDate || null,
+    historicalAverages: {
+      PT: { weekday: PT_weekday, weekend: PT_weekend },
+      ES: { weekday: ES_weekday, weekend: ES_weekend }
+    }
   };
 }
 
