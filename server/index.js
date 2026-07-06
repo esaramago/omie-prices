@@ -189,7 +189,20 @@ app.post('/api/scrape/trigger', scrapeLimiter, authenticateScrape, async (req, r
 
 // Serve frontend static assets (built by SvelteKit static adapter)
 const frontendBuildPath = process.env.FRONTEND_BUILD_PATH || path.join(__dirname, '../frontend/build');
-app.use(express.static(frontendBuildPath));
+app.use(
+  express.static(frontendBuildPath, {
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      // Hashed static assets in SvelteKit are immutable and can be cached long-term
+      if (filePath.includes('_app/immutable')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.endsWith('.html') || filePath.endsWith('service-worker.js') || filePath.endsWith('manifest.json')) {
+        // Never cache entry points, service worker, or manifest to ensure instant updates
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      }
+    }
+  })
+);
 
 // Fallback all other routes to frontend SPA router
 app.get(/.*/, (req, res) => {
@@ -197,6 +210,7 @@ app.get(/.*/, (req, res) => {
   if (req.originalUrl.startsWith('/api')) {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   res.sendFile(path.join(frontendBuildPath, 'index.html'));
 });
 

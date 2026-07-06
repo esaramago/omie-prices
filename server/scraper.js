@@ -47,7 +47,7 @@ export async function fetchPricesForDate(dateStr) {
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.warn(`[Scraper] File not found (404) for date ${dateStr}. It may not be published yet.`);
+        console.log(`[Scraper] File not found (404) for date ${dateStr}. It may not be published yet.`);
         return [];
       }
       throw new Error(`HTTP error! status: ${response.status}`);
