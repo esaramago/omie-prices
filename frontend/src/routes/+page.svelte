@@ -801,7 +801,7 @@
         </div>
       {/if}
       <div class="credits">
-        Desenvolvido por <a href="https://emanuelsaramago.com" target="_blank" rel="noopener noreferrer">Emanuel Saramago</a> • Repositório no <a href="https://github.com/esaramago/omie-prices" target="_blank" rel="noopener noreferrer">GitHub</a>, sob licença <a href="https://github.com/esaramago/omie-prices/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0-only</a> • Fonte de dados oficial OMIE
+        Desenvolvido por <a href="https://emanuelsaramago.com" target="_blank" rel="noopener noreferrer">Emanuel Saramago</a> • Código fonte no <a href="https://github.com/esaramago/omie-prices" target="_blank" rel="noopener noreferrer">GitHub</a>, sob licença <a href="https://github.com/esaramago/omie-prices/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0-only</a> • Fonte de dados oficial OMIE
       </div>
     </div>
   </footer>
