@@ -814,18 +814,28 @@
     background-color: #0b0f19;
     color: #e2e8f0;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    overflow-x: auto;
+    min-height: 100vh;
+    width: 100%;
+  }
+  
+  :global(html) {
+    overflow-x: auto;
+    width: 100%;
   }
 
   .dashboard-container {
     max-width: 1440px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: clamp(1rem, 4vw, 2rem);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: clamp(1rem, 2vw, 2rem);
     min-height: 100vh;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   /* Header Styles */
@@ -1144,8 +1154,10 @@
   .table-scroll-container {
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: hidden;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.04);
+    width: 100%;
   }
 
   /* Custom scrollbar */
@@ -1167,6 +1179,8 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    table-layout: fixed;
+    word-break: break-word;
   }
 
   .prices-table th {
@@ -1398,6 +1412,17 @@
     text-decoration-color: #00f2fe;
   }
 
+  /* Chart Panel */
+  .chart-panel {
+    overflow: hidden;
+  }
+  
+  .chart-container {
+    width: 100%;
+    overflow: visible;
+    min-height: 300px;
+  }
+  
   /* Chart Legend */
   .chart-legend {
     display: flex;
@@ -1473,7 +1498,19 @@
     font-size: 0.8rem;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 1024px) {
+    .details-grid {
+      flex-direction: column;
+    }
+    
+    .chart-header-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+  }
+
+  @media (max-width: 768px) {
     .dashboard-container {
       padding: 1rem;
     }
@@ -1483,11 +1520,49 @@
       align-items: flex-start;
     }
 
-    .chart-header-row {
+    .controls-panel {
+      width: 100%;
       flex-direction: column;
-      align-items: start;
+      align-items: stretch;
+      gap: 1rem;
     }
+    
+    .filter-group {
+      width: 100%;
+    }
+    
+    .segmented-control,
+    .date-input-wrapper,
+    .select-input-wrapper {
+      width: 100%;
+    }
+    
+    .select-input-wrapper select {
+      width: 100%;
+    }
+    
+    .segmented-control button, 
+    .date-input-wrapper input, 
+    .select-input-wrapper select {
+      width: 100%;
+      text-align: center;
+    }
+    
+    .panel {
+      padding: 1.25rem;
+    }
+    
+    .prices-table {
+      font-size: 0.85rem;
+    }
+    
+    .prices-table th,
+    .prices-table td {
+      padding: 0.625rem 0.75rem;
+    }
+  }
 
+  @media (max-width: 640px) {
     .chart-legend {
       flex-direction: column;
       align-items: flex-start;
@@ -1503,15 +1578,6 @@
 
     .legend-item {
       width: fit-content;
-    }
-
-    .controls-panel {
-      width: 100%;
-      justify-content: space-between;
-    }
-    .segmented-control button, .date-input-wrapper input, .select-input-wrapper select {
-      flex: 1;
-      text-align: center;
     }
 
     .dashboard-footer {
@@ -1530,17 +1596,70 @@
     }
   }
 
-  @media (max-width: 500px) {
-    .filter-group {
-      width: 100%;
+  @media (max-width: 480px) {
+    .brand h1 {
+      font-size: 1.5rem;
     }
-    .segmented-control,
-    .date-input-wrapper,
-    .select-input-wrapper {
-      width: 100%;
+    
+    .subtitle {
+      font-size: 0.85rem;
     }
-    .select-input-wrapper select {
-      width: 100%;
+    
+    .logo-icon {
+      font-size: 1.8rem;
     }
+    
+    .panel-header h2 {
+      font-size: 1.15rem;
+    }
+    
+    .stat-value {
+      font-size: 1.8rem;
+    }
+    
+    .stat-label {
+      font-size: 0.85rem;
+    }
+    
+    .chart-container {
+      min-height: 250px;
+    }
+    
+    .prices-table {
+      font-size: 0.8rem;
+    }
+    
+    .prices-table th,
+    .prices-table td {
+      padding: 0.5rem 0.625rem;
+    }
+  }
+
+  /* Prevent horizontal overflow */
+  :global(body) {
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+  }
+  
+  /* Prevent overscroll bounce on iOS */
+  @media (overscroll-behavior: contain) {
+    :global(html) {
+      overscroll-behavior: contain;
+    }
+    :global(body) {
+      overscroll-behavior: contain;
+    }
+  }
+  
+  /* Ensure images and media don't overflow */
+  :global(img), :global(video), :global(canvas), :global(svg) {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+  
+  /* Prevent horizontal scrolling issues */
+  :global(*) {
+    box-sizing: border-box;
   }
 </style>
