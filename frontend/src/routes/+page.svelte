@@ -173,6 +173,17 @@
     return baseAvg;
   });
 
+  const formattedMinDate = $derived.by(() => {
+    if (!apiStatus || !apiStatus.database || !apiStatus.database.minDate) {
+      return '01/01/2026';
+    }
+    const parts = apiStatus.database.minDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return apiStatus.database.minDate;
+  });
+
   const comparisonAverage = $derived(
     historicalAverage !== null ? historicalAverage : averagePrice
   );
@@ -590,6 +601,9 @@
             <span class="legend-color-dot expensive"></span>
             <span class="legend-label">Muito caro</span>
             <span class="legend-value">&gt; {Math.round(highThresholdPercent * 100)}% ({(comparisonAverage * highThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
+          </div>
+          <div class="legend-note">
+            * O valor de 100% corresponde à média de referência ({comparisonAverage.toFixed(priceDecimals)} {priceUnit}), que é a {#if historicalAverage !== null}média histórica desde {formattedMinDate} ({isWeekend ? 'fim de semana' : 'dia útil'}){:else}média do dia{/if}.
           </div>
         </div>
       </div>
@@ -1322,6 +1336,15 @@
     border-color: rgba(255, 255, 255, 0.08);
   }
 
+  .legend-note {
+    width: 100%;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+  }
+
   .legend-color-dot {
     width: 10px;
     height: 10px;
@@ -1380,6 +1403,12 @@
       align-items: flex-start;
       gap: 0.5rem;
       padding-left: 0.5rem;
+    }
+
+    .legend-note {
+      text-align: left;
+      padding-left: 0;
+      margin-top: 0.25rem;
     }
 
     .legend-item {

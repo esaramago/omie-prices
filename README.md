@@ -18,7 +18,7 @@ npm start
 ```
 
 - The API will be available at `http://localhost:3000`.
-- On the first run, the scraper will automatically download historical data from `2026-06-01` to the current day (this process may take a few seconds).
+- On the first run, the scraper will automatically download historical data from `2026-01-01` to the current day (this process may take a few seconds).
 - An internal cron job is configured to fetch new prices automatically every hour.
 
 ### 2. Frontend Panel (SvelteKit)

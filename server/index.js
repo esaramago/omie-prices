@@ -256,9 +256,9 @@ async function runScheduledScrape() {
   }
 }
 
-// Initial sync on startup (fetches since user-requested 2026-06-01)
+// Initial sync on startup (fetches since user-requested 2026-01-01)
 async function initializeData() {
-  const startSyncDate = '2026-06-01';
+  const startSyncDate = '2026-01-01';
   
   const tomorrowObj = new Date();
   tomorrowObj.setDate(tomorrowObj.getDate() + 1);
