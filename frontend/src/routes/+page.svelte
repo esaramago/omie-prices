@@ -252,7 +252,8 @@
             style: { colors: '#94a3b8', fontSize: '11px' },
             formatter: (value) => {
               if (chartViewMode === 'quarterly') {
-                return value && (value.endsWith(':00') || value.includes('(Atual)')) ? value : '';
+                const valStr = String(value || '');
+                return valStr && (valStr.endsWith(':00') || valStr.includes('(Atual)')) ? valStr : '';
               }
               return value;
             }
@@ -320,7 +321,8 @@
                   style: { colors: '#94a3b8', fontSize: '11px' },
                   formatter: (value) => {
                     if (chartViewMode === 'quarterly') {
-                      return value && (value.endsWith(':00') || value.includes('(Atual)')) ? value : '';
+                      const valStr = String(value || '');
+                      return valStr && (valStr.endsWith(':00') || valStr.includes('(Atual)')) ? valStr : '';
                     }
                     return value;
                   }
@@ -476,39 +478,6 @@
 
       <!-- Bottom Layout: Table and Summary -->
       <div class="details-grid">
-        <!-- Table Card -->
-        <div class="panel table-panel">
-          <div class="panel-header">
-            <h2>Lista de Períodos</h2>
-            <p class="panel-desc">Preço detalhado por quarto de hora</p>
-          </div>
-          <div class="table-scroll-container">
-            <table class="prices-table">
-              <thead>
-                <tr>
-                  <th>Período</th>
-                  <th>Hora de Início</th>
-                  <th class="text-right">Preço</th>
-                  <th class="text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each prices as p}
-                  <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
-                    <td>{p.period}</td>
-                    <td>{periodToTime(p.period)}</td>
-                    <td class="text-right font-mono font-bold">{p.price.toFixed(2)} €/MWh</td>
-                    <td class="text-center">
-                      <span class="badge badge-price {getPriceClass(p.price)}">
-                        {getPriceLabel(p.price)}
-                      </span>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
         <!-- Summary Panel -->
         <div class="panel summary-panel">
@@ -577,6 +546,39 @@
                 {/if}
               </div>
             </div>
+          </div>
+        </div>
+        <!-- Table Card -->
+        <div class="panel table-panel">
+          <div class="panel-header">
+            <h2>Lista de Períodos</h2>
+            <p class="panel-desc">Preço detalhado por quarto de hora</p>
+          </div>
+          <div class="table-scroll-container">
+            <table class="prices-table">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th>Hora de Início</th>
+                  <th class="text-right">Preço</th>
+                  <th class="text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each prices as p}
+                  <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
+                    <td>{p.period}</td>
+                    <td>{periodToTime(p.period)}</td>
+                    <td class="text-right font-mono font-bold">{p.price.toFixed(2)} €/MWh</td>
+                    <td class="text-center">
+                      <span class="badge badge-price {getPriceClass(p.price)}">
+                        {getPriceLabel(p.price)}
+                      </span>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -1144,16 +1146,16 @@
       flex-direction: column;
       align-items: flex-start;
     }
-    
+
+    .chart-header-row {
+      flex-direction: column;
+      align-items: start;
+    }
+
     .controls-panel {
       width: 100%;
       justify-content: space-between;
     }
-
-    .segmented-control, .date-input-wrapper {
-      width: 100%;
-    }
-
     .segmented-control button, .date-input-wrapper input {
       flex: 1;
       text-align: center;
@@ -1163,6 +1165,13 @@
       flex-direction: column;
       align-items: flex-start;
       gap: 0.75rem;
+    }
+  }
+
+  @media (max-width: 500px) {
+    .segmented-control,
+    .date-input-wrapper {
+      width: 100%;
     }
   }
 </style>
