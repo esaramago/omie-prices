@@ -515,10 +515,6 @@
   }
 </script>
 
-<svelte:head>
-  <title>Tarifa Spot - Dashboard</title>
-</svelte:head>
-
 <main class="dashboard-container">
   <!-- Header Section -->
   <header class="dashboard-header">
@@ -790,6 +786,9 @@
 
   <!-- Footer Information -->
   <footer class="dashboard-footer">
+    <div class="disclaimer">
+      <strong>Aviso:</strong> O tarifário Coopérnico é o GO com horário Simples. Este é um projeto independente. Podem ocorrer erros na informação apresentada.
+    </div>
     <div class="footer-row">
       {#if apiStatus}
         <div class="status-indicator">
@@ -800,9 +799,6 @@
       <div class="credits">
         Desenvolvido por <a href="https://emanuelsaramago.com" target="_blank" rel="noopener noreferrer">Emanuel Saramago</a> • Repositório no <a href="https://github.com/esaramago/omie-prices" target="_blank" rel="noopener noreferrer">GitHub</a>, sob licença <a href="https://github.com/esaramago/omie-prices/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0-only</a> • Fonte de dados oficial OMIE
       </div>
-    </div>
-    <div class="disclaimer">
-      <strong>Aviso:</strong> O tarifário Coopérnico é o GO com horário Simples. Este é um projeto independente. Podem ocorrer erros na informação apresentada.
     </div>
   </footer>
 </main>
@@ -1358,8 +1354,8 @@
     text-align: center;
     font-size: 0.8rem;
     color: #64748b;
-    border-top: 1px solid rgba(255, 255, 255, 0.03);
-    padding-top: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding-bottom: 0.75rem;
     line-height: 1.4;
   }
 
