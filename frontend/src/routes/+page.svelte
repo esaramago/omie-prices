@@ -4,6 +4,7 @@
   // State using Svelte 5 Runes
   let selectedDate = $state(new Date().toISOString().split('T')[0]);
   let selectedCountry = $state('PT');
+  let selectedProvider = $state('OMIE');
   let prices = $state([]);
   let loading = $state(true);
   let error = $state(null);
@@ -36,6 +37,28 @@
   let currentPeriod = $state(getCurrentPeriod());
   const currentHour = $derived(Math.floor((currentPeriod - 1) / 4));
 
+  const processedPrices = $derived.by(() => {
+    if (selectedProvider === 'Coopérnico') {
+      const k = 0.009;
+      const GO = 0.001;
+      const FP = 0.15;
+      const TAR = 0.0607; // Tarifa de Acesso às Redes BTN Simples (2026)
+      return prices.map(p => {
+        const omieKwh = p.price / 1000;
+        const coopernicoKwh = ((omieKwh + k) * (1 + FP)) + GO + TAR;
+        return {
+          ...p,
+          price: coopernicoKwh
+        };
+      });
+    }
+    return prices;
+  });
+
+  const priceUnit = $derived(selectedProvider === 'OMIE' ? '€/MWh' : '€/kWh');
+  const priceDecimals = $derived(selectedProvider === 'OMIE' ? 2 : 4);
+  const labelDecimals = $derived(selectedProvider === 'OMIE' ? 1 : 4);
+
   function formatDataLabel(value, opts) {
     if (typeof value !== 'number') return '';
     const isQuarterly = chartViewMode === 'quarterly';
@@ -49,19 +72,19 @@
     if (isQuarterly) {
       // In quarterly mode, show every 4th label OR the current period's label
       if (isCurrent || opts.dataPointIndex % 4 === 0) {
-        return `${value.toFixed(1)}€`;
+        return `${value.toFixed(labelDecimals)}€`;
       }
       return '';
     }
-    return `${value.toFixed(1)}€`;
+    return `${value.toFixed(labelDecimals)}€`;
   }
 
   // Derived state: aggregate 15-minute periods into hourly averages for the chart
   const hourlyPrices = $derived.by(() => {
-    if (prices.length === 0) return [];
+    if (processedPrices.length === 0) return [];
     const hourly = [];
     for (let h = 0; h < 24; h++) {
-      const hourPeriods = prices.filter(p => Math.floor((p.period - 1) / 4) === h);
+      const hourPeriods = processedPrices.filter(p => Math.floor((p.period - 1) / 4) === h);
       if (hourPeriods.length > 0) {
         const avgPrice = hourPeriods.reduce((sum, p) => sum + p.price, 0) / hourPeriods.length;
         hourly.push({
@@ -73,27 +96,27 @@
     return hourly;
   });
 
-  // Derived Values (using raw 15-minute prices)
+  // Derived Values (using processed prices)
   const averagePrice = $derived(
-    prices.length > 0
-      ? prices.reduce((sum, p) => sum + p.price, 0) / prices.length
+    processedPrices.length > 0
+      ? processedPrices.reduce((sum, p) => sum + p.price, 0) / processedPrices.length
       : 0
   );
 
   const minPriceRecord = $derived(
-    prices.length > 0
-      ? prices.reduce((min, p) => (p.price < min.price ? p : min), prices[0])
+    processedPrices.length > 0
+      ? processedPrices.reduce((min, p) => (p.price < min.price ? p : min), processedPrices[0])
       : null
   );
 
   const maxPriceRecord = $derived(
-    prices.length > 0
-      ? prices.reduce((max, p) => (p.price > max.price ? p : max), prices[0])
+    processedPrices.length > 0
+      ? processedPrices.reduce((max, p) => (p.price > max.price ? p : max), processedPrices[0])
       : null
   );
 
   const currentPriceRecord = $derived(
-    prices.length > 0 ? prices.find((p) => p.period === currentPeriod) : null
+    processedPrices.length > 0 ? processedPrices.find((p) => p.period === currentPeriod) : null
   );
 
   const isSelectedDateToday = $derived(
@@ -147,8 +170,8 @@
 
   // Chart Rendering effect
   $effect(() => {
-    if (prices.length > 0 && chartElement) {
-      const displayData = chartViewMode === 'hourly' ? hourlyPrices : prices.map(p => ({
+    if (processedPrices.length > 0 && chartElement) {
+      const displayData = chartViewMode === 'hourly' ? hourlyPrices : processedPrices.map(p => ({
         price: p.price,
         time: periodToTime(p.period)
       }));
@@ -238,7 +261,7 @@
         },
         series: [
           {
-            name: `Preço (${selectedCountry})`,
+            name: `Preço (${selectedCountry}) - ${selectedProvider}`,
             data: seriesData
           }
         ],
@@ -264,7 +287,7 @@
         yaxis: {
           labels: {
             style: { colors: '#94a3b8' },
-            formatter: (value) => typeof value === 'number' ? `${value.toFixed(2)} €` : value
+            formatter: (value) => typeof value === 'number' ? `${value.toFixed(priceDecimals)} ${priceUnit}` : value
           }
         },
         grid: {
@@ -274,7 +297,7 @@
         tooltip: {
           theme: 'dark',
           x: { show: true },
-          y: { formatter: (value) => `${value.toFixed(2)} €/MWh` }
+          y: { formatter: (value) => `${value.toFixed(priceDecimals)} ${priceUnit}` }
         },
         responsive: [
           {
@@ -313,7 +336,7 @@
                 labels: {
                   rotate: 0,
                   style: { colors: '#94a3b8', fontSize: '11px' },
-                  formatter: (value) => typeof value === 'number' ? `${value.toFixed(1)} €` : value
+                  formatter: (value) => typeof value === 'number' ? `${value.toFixed(priceDecimals)} ${priceUnit}` : value
                 }
               },
               yaxis: {
@@ -396,6 +419,17 @@
         </button>
       </div>
 
+      <!-- Provider Select -->
+      <div class="select-input-wrapper">
+        <select 
+          id="provider-select"
+          bind:value={selectedProvider}
+        >
+          <option value="OMIE">OMIE (Grossista)</option>
+          <option value="Coopérnico">Coopérnico</option>
+        </select>
+      </div>
+
       <!-- Date Picker -->
       <div class="date-input-wrapper">
         <input 
@@ -428,7 +462,7 @@
       <div class="spinner"></div>
       <p>A carregar preços de energia...</p>
     </div>
-  {:else if prices.length === 0 && !error}
+  {:else if processedPrices.length === 0 && !error}
     <section class="alert alert-info">
       <span class="alert-icon">ℹ️</span>
       <div>
@@ -436,7 +470,7 @@
         <p>Não foram encontrados preços para a data selecionada ({selectedDate}). O mercado da OMIE pode ainda não ter publicado os preços para amanhã.</p>
       </div>
     </section>
-  {:else if prices.length > 0}
+  {:else if processedPrices.length > 0}
 
 
     <!-- Main Visualizations Grid -->
@@ -497,7 +531,7 @@
               </span>
               <div class="metric-value-container">
                 <span class="metric-value text-cyan font-mono">
-                  {isSelectedDateToday && currentPriceRecord ? currentPriceRecord.price.toFixed(2) : '--.--'} <span class="unit">€/MWh</span>
+                  {isSelectedDateToday && currentPriceRecord ? currentPriceRecord.price.toFixed(priceDecimals) : '--.--'} <span class="unit">{priceUnit}</span>
                 </span>
                 {#if isSelectedDateToday && currentPriceRecord}
                   <span class="metric-meta">Período {currentPriceRecord.period} ({periodToTime(currentPriceRecord.period)})</span>
@@ -513,7 +547,7 @@
                 Preço Médio
               </span>
               <span class="metric-value font-mono">
-                {averagePrice.toFixed(2)} <span class="unit">€/MWh</span>
+                {averagePrice.toFixed(priceDecimals)} <span class="unit">{priceUnit}</span>
               </span>
             </div>
 
@@ -524,7 +558,7 @@
               </span>
               <div class="metric-value-container">
                 <span class="metric-value text-green font-mono">
-                  {minPriceRecord ? minPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
+                  {minPriceRecord ? minPriceRecord.price.toFixed(priceDecimals) : '0.00'} <span class="unit">{priceUnit}</span>
                 </span>
                 {#if minPriceRecord}
                   <span class="metric-meta">Período {minPriceRecord.period} ({periodToTime(minPriceRecord.period)})</span>
@@ -539,7 +573,7 @@
               </span>
               <div class="metric-value-container">
                 <span class="metric-value text-rose font-mono">
-                  {maxPriceRecord ? maxPriceRecord.price.toFixed(2) : '0.00'} <span class="unit">€/MWh</span>
+                  {maxPriceRecord ? maxPriceRecord.price.toFixed(priceDecimals) : '0.00'} <span class="unit">{priceUnit}</span>
                 </span>
                 {#if maxPriceRecord}
                   <span class="metric-meta">Período {maxPriceRecord.period} ({periodToTime(maxPriceRecord.period)})</span>
@@ -565,11 +599,11 @@
                 </tr>
               </thead>
               <tbody>
-                {#each prices as p}
+                {#each processedPrices as p}
                   <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
                     <td>{p.period}</td>
                     <td>{periodToTime(p.period)}</td>
-                    <td class="text-right font-mono font-bold">{p.price.toFixed(2)} €/MWh</td>
+                    <td class="text-right font-mono font-bold">{p.price.toFixed(priceDecimals)} {priceUnit}</td>
                     <td class="text-center">
                       <span class="badge badge-price {getPriceClass(p.price)}">
                         {getPriceLabel(p.price)}
@@ -735,6 +769,35 @@
   .date-input-wrapper input:focus {
     border-color: #00f2fe;
     box-shadow: 0 0 0 2px rgba(0, 242, 254, 0.15);
+  }
+
+  /* Select Input */
+  .select-input-wrapper select {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    padding: 0.5rem 2.25rem 0.5rem 1rem;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    transition: all 0.2s;
+    appearance: none;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+  }
+
+  .select-input-wrapper select:focus {
+    border-color: #00f2fe;
+    box-shadow: 0 0 0 2px rgba(0, 242, 254, 0.15);
+  }
+
+  .select-input-wrapper select option {
+    background-color: #0b0f19;
+    color: #e2e8f0;
   }
 
   /* Stats Grid */
@@ -1156,7 +1219,7 @@
       width: 100%;
       justify-content: space-between;
     }
-    .segmented-control button, .date-input-wrapper input {
+    .segmented-control button, .date-input-wrapper input, .select-input-wrapper select {
       flex: 1;
       text-align: center;
     }
@@ -1170,7 +1233,11 @@
 
   @media (max-width: 500px) {
     .segmented-control,
-    .date-input-wrapper {
+    .date-input-wrapper,
+    .select-input-wrapper {
+      width: 100%;
+    }
+    .select-input-wrapper select {
       width: 100%;
     }
   }
