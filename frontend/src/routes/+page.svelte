@@ -724,7 +724,7 @@
       </div>
     {/if}
     <div class="credits">
-      Desenvolvido por Emanuel Saramago • <a href="https://github.com/esaramago/omie-prices" target="_blank" rel="noopener noreferrer">Repositório GitHub</a> • Fonte de dados oficial OMIE
+      Desenvolvido por <a href="https://emanuelsaramago.com" target="_blank">Emanuel Saramago</a> • Repositório no <a href="https://github.com/esaramago/omie-prices" target="_blank">GitHub</a>, sob licença <a href="https://github.com/esaramago/omie-prices/blob/main/LICENSE" target="_blank">AGPL-3.0-only</a> • Fonte de dados oficial OMIE
     </div>
   </footer>
 </main>
