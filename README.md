@@ -1,4 +1,4 @@
-# OMIE Energy Monitor & Dashboard
+# Tarifa Spot & Dashboard
 
 Integrated single-container application containing an OMIE (Iberian) energy price Scraper, a Node.js API (Express + SQLite), and an interactive panel in SvelteKit (Svelte 5 + Vanilla CSS + ApexCharts).
 

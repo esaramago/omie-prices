@@ -1,4 +1,4 @@
-# 📖 OMIE Energy Monitor API Documentation
+# 📖 Tarifa Spot API Documentation
 
 This is the documentation for the OMIE (Iberian) energy price API. The server is developed in Node.js using **Express** and data persistence in **SQLite** (via the `better-sqlite3` library).
 

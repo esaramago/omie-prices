@@ -47,8 +47,7 @@
   let chart = null;
   let chartPromise = null;
 
-  // Chart View Mode: 'hourly' or 'quarterly'
-  let chartViewMode = $state('hourly');
+
 
   // Helpers
   function periodToTime(period) {
@@ -96,21 +95,6 @@
 
   function formatDataLabel(value, opts) {
     if (typeof value !== 'number') return '';
-    const isQuarterly = chartViewMode === 'quarterly';
-    
-    // Check if this data point is the active/current one
-    const isCurrent = isSelectedDateToday && (
-      (isQuarterly && opts.dataPointIndex === (currentPeriod - 1)) ||
-      (!isQuarterly && opts.dataPointIndex === currentHour)
-    );
-
-    if (isQuarterly) {
-      // In quarterly mode, show every 4th label OR the current period's label
-      if (isCurrent || opts.dataPointIndex % 4 === 0) {
-        return `${value.toFixed(labelDecimals)}€`;
-      }
-      return '';
-    }
     return `${value.toFixed(labelDecimals)}€`;
   }
 
@@ -262,15 +246,10 @@
   // Chart Rendering effect
   $effect(() => {
     if (processedPrices.length > 0 && chartElement) {
-      const displayData = chartViewMode === 'hourly' ? hourlyPrices : processedPrices.map(p => ({
-        price: p.price,
-        time: periodToTime(p.period)
-      }));
+      const displayData = hourlyPrices;
       const seriesData = displayData.map((p) => p.price);
       
-      const activeIdx = isSelectedDateToday 
-        ? (chartViewMode === 'hourly' ? currentHour : currentPeriod - 1)
-        : -1;
+      const activeIdx = isSelectedDateToday ? currentHour : -1;
 
       const categories = displayData.map((p, idx) => {
         if (isSelectedDateToday && idx === activeIdx) {
@@ -372,13 +351,7 @@
             rotateAlways: false,
             hideOverlappingLabels: true,
             style: { colors: '#94a3b8', fontSize: '11px' },
-            formatter: (value) => {
-              if (chartViewMode === 'quarterly') {
-                const valStr = String(value || '');
-                return valStr && (valStr.endsWith(':00') || valStr.includes('(Atual)')) ? valStr : '';
-              }
-              return value;
-            }
+            formatter: (value) => value
           },
           axisBorder: { show: false },
           axisTicks: { show: false }
@@ -415,7 +388,7 @@
                 }
               },
               chart: {
-                height: chartViewMode === 'hourly' ? 650 : 1800
+                height: 650
               },
               dataLabels: {
                 offsetX: 8,
@@ -441,13 +414,7 @@
               yaxis: {
                 labels: {
                   style: { colors: '#94a3b8', fontSize: '11px' },
-                  formatter: (value) => {
-                    if (chartViewMode === 'quarterly') {
-                      const valStr = String(value || '');
-                      return valStr && (valStr.endsWith(':00') || valStr.includes('(Atual)')) ? valStr : '';
-                    }
-                    return value;
-                  }
+                  formatter: (value) => value
                 }
               }
             }
@@ -493,7 +460,7 @@
 </script>
 
 <svelte:head>
-  <title>OMIE Energy Monitor - Dashboard</title>
+  <title>Tarifa Spot - Dashboard</title>
 </svelte:head>
 
 <main class="dashboard-container">
@@ -502,49 +469,58 @@
     <div class="brand">
       <div class="logo-icon">⚡</div>
       <div>
-        <h1>OMIE Energy Monitor</h1>
-        <p class="subtitle">Preços horários e quarto-horários do mercado ibérico</p>
+        <h1>Tarifa Spot</h1>
+        <p class="subtitle">Preços do mercado eléctrico ibérico OMIE</p>
       </div>
     </div>
     
     <div class="controls-panel">
       <!-- Country Picker -->
-      <div class="segmented-control">
-        <button 
-          class="control-btn" 
-          class:active={selectedCountry === 'PT'} 
-          onclick={() => selectedCountry = 'PT'}
-        >
-          Portugal
-        </button>
-        <button 
-          class="control-btn" 
-          class:active={selectedCountry === 'ES'} 
-          onclick={() => selectedCountry = 'ES'}
-        >
-          Espanha
-        </button>
+      <div class="filter-group">
+        <span class="filter-label">País</span>
+        <div class="segmented-control">
+          <button 
+            class="control-btn" 
+            class:active={selectedCountry === 'PT'} 
+            onclick={() => selectedCountry = 'PT'}
+          >
+            Portugal
+          </button>
+          <button 
+            class="control-btn" 
+            class:active={selectedCountry === 'ES'} 
+            onclick={() => selectedCountry = 'ES'}
+          >
+            Espanha
+          </button>
+        </div>
       </div>
 
       <!-- Provider Select -->
-      <div class="select-input-wrapper">
-        <select 
-          id="provider-select"
-          bind:value={selectedProvider}
-        >
-          <option value="OMIE">OMIE (Grossista)</option>
-          <option value="Coopérnico">Coopérnico</option>
-        </select>
+      <div class="filter-group">
+        <label for="provider-select" class="filter-label">Comercializador</label>
+        <div class="select-input-wrapper">
+          <select 
+            id="provider-select"
+            bind:value={selectedProvider}
+          >
+            <option value="OMIE">OMIE (Grossista)</option>
+            <option value="Coopérnico">Coopérnico</option>
+          </select>
+        </div>
       </div>
 
       <!-- Date Picker -->
-      <div class="date-input-wrapper">
-        <input 
-          id="date-picker"
-          type="date" 
-          value={selectedDate} 
-          onchange={(e) => selectedDate = e.target.value}
-        />
+      <div class="filter-group">
+        <label for="date-picker" class="filter-label">Data</label>
+        <div class="date-input-wrapper">
+          <input 
+            id="date-picker"
+            type="date" 
+            value={selectedDate} 
+            onchange={(e) => selectedDate = e.target.value}
+          />
+        </div>
       </div>
     </div>
   </header>
@@ -586,35 +562,36 @@
       <div class="panel chart-panel">
         <div class="panel-header chart-header-row">
           <div>
-            <h2>Curva de Preço Intradiária</h2>
+            <h2>Preços horários intradiários</h2>
             <p class="panel-desc">
-              {#if chartViewMode === 'hourly'}
-                Evolução do preço médio horário ao longo das 24 horas
-              {:else}
-                Evolução do preço em intervalos de 15 minutos ao longo das 24 horas
-              {/if}
+              Evolução do preço médio horário ao longo das 24 horas
             </p>
-          </div>
-          
-          <!-- Granularity Toggle -->
-          <div class="segmented-control control-small">
-            <button 
-              class="control-btn btn-small" 
-              class:active={chartViewMode === 'hourly'} 
-              onclick={() => chartViewMode = 'hourly'}
-            >
-              Hora a Hora
-            </button>
-            <button 
-              class="control-btn btn-small" 
-              class:active={chartViewMode === 'quarterly'} 
-              onclick={() => chartViewMode = 'quarterly'}
-            >
-              15 Minutos
-            </button>
           </div>
         </div>
         <div class="chart-container" bind:this={chartElement}></div>
+
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-color-dot cheap"></span>
+            <span class="legend-label">Barato</span>
+            <span class="legend-value">&lt; {Math.round(lowThresholdPercent * 100)}% ({(comparisonAverage * lowThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-color-dot moderate-cheap"></span>
+            <span class="legend-label">Moderado</span>
+            <span class="legend-value">{Math.round(lowThresholdPercent * 100)}% - 100% ({(comparisonAverage * lowThresholdPercent).toFixed(priceDecimals)} a {comparisonAverage.toFixed(priceDecimals)} {priceUnit})</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-color-dot moderate-expensive"></span>
+            <span class="legend-label">Caro</span>
+            <span class="legend-value">100% - {Math.round(highThresholdPercent * 100)}% ({comparisonAverage.toFixed(priceDecimals)} a {(comparisonAverage * highThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-color-dot expensive"></span>
+            <span class="legend-label">Muito caro</span>
+            <span class="legend-value">&gt; {Math.round(highThresholdPercent * 100)}% ({(comparisonAverage * highThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
+          </div>
+        </div>
       </div>
 
       <!-- Bottom Layout: Table and Summary -->
@@ -624,7 +601,7 @@
         <div class="panel summary-panel">
           <div class="card-glow glow-amber"></div>
           <div class="panel-header">
-            <h2>Resumo do Dia</h2>
+            <h2>Resumo do dia</h2>
             <p class="panel-desc">Principais métricas de preços de hoje</p>
           </div>
           <div class="metrics-list">
@@ -704,7 +681,7 @@
         <!-- Table Card -->
         <div class="panel table-panel">
           <div class="panel-header">
-            <h2>Lista de Períodos</h2>
+            <h2>Lista de períodos</h2>
             <p class="panel-desc">Preço detalhado por quarto de hora</p>
           </div>
           <div class="table-scroll-container">
@@ -763,7 +740,7 @@
   }
 
   .dashboard-container {
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 0 auto;
     padding: 2rem;
     box-sizing: border-box;
@@ -814,9 +791,23 @@
 
   .controls-panel {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 1rem;
     flex-wrap: wrap;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .filter-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   /* Segmented Buttons */
@@ -836,16 +827,7 @@
     gap: 1rem;
   }
 
-  .control-small {
-    padding: 0.15rem;
-    border-radius: 8px;
-  }
 
-  .btn-small {
-    padding: 0.35rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-  }
 
   .control-btn {
     background: transparent;
@@ -1312,6 +1294,72 @@
     }
   }
 
+  /* Chart Legend */
+  .chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    margin-top: 0.5rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    background: rgba(30, 41, 59, 0.3);
+    padding: 0.4rem 0.8rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    transition: all 0.2s ease;
+  }
+
+  .legend-item:hover {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .legend-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .legend-color-dot.cheap {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  }
+
+  .legend-color-dot.moderate-cheap {
+    background: #eab308;
+    box-shadow: 0 0 6px rgba(234, 179, 8, 0.5);
+  }
+
+  .legend-color-dot.moderate-expensive {
+    background: #f97316;
+    box-shadow: 0 0 6px rgba(249, 115, 22, 0.5);
+  }
+
+  .legend-color-dot.expensive {
+    background: #ef4444;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+  }
+
+  .legend-label {
+    font-weight: 600;
+    color: #f8fafc;
+  }
+
+  .legend-value {
+    color: #94a3b8;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.8rem;
+  }
+
   @media (max-width: 640px) {
     .dashboard-container {
       padding: 1rem;
@@ -1325,6 +1373,17 @@
     .chart-header-row {
       flex-direction: column;
       align-items: start;
+    }
+
+    .chart-legend {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding-left: 0.5rem;
+    }
+
+    .legend-item {
+      width: fit-content;
     }
 
     .controls-panel {
@@ -1344,6 +1403,9 @@
   }
 
   @media (max-width: 500px) {
+    .filter-group {
+      width: 100%;
+    }
     .segmented-control,
     .date-input-wrapper,
     .select-input-wrapper {
