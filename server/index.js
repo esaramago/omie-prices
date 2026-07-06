@@ -22,11 +22,11 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"], // Allowed for SvelteKit client-side hydration
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://analytics.emanuelsaramago.com"], // Allowed for SvelteKit client-side hydration and analytics
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], // Allowed for inline styles and Google Fonts
         fontSrc: ["'self'", "https://fonts.gstatic.com"], // Allowed for Google Fonts
         imgSrc: ["'self'", "data:"], // Allowed for self images and inline data URIs
-        connectSrc: ["'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"] // Allowed for local API calls and Google Fonts CSS/fonts fetched via Service Worker
+        connectSrc: ["'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com", "https://analytics.emanuelsaramago.com"] // Allowed for local API calls, Google Fonts, and analytics
       }
     }
   })

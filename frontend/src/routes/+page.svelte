@@ -80,15 +80,14 @@
   }
 
   const processedPrices = $derived.by(() => {
-    if (selectedProvider === 'Coopérnico') {
-      return prices.map(p => {
-        return {
-          ...p,
-          price: convertToCoopernico(p.price)
-        };
-      });
-    }
-    return prices;
+    const isCoopernico = selectedProvider === 'Coopérnico';
+    return prices.map(p => {
+      return {
+        ...p,
+        price: isCoopernico ? convertToCoopernico(p.price) : p.price,
+        time: periodToTime(p.period)
+      };
+    });
   });
 
   const priceUnit = $derived(selectedProvider === 'OMIE' ? '€/MWh' : '€/kWh');
@@ -680,7 +679,7 @@
                   {isSelectedDateToday && currentPriceRecord ? currentPriceRecord.price.toFixed(priceDecimals) : '--.--'} <span class="unit">{priceUnit}</span>
                 </span>
                 {#if isSelectedDateToday && currentPriceRecord}
-                  <span class="metric-meta">Período {currentPriceRecord.period} ({periodToTime(currentPriceRecord.period)})</span>
+                  <span class="metric-meta">Período {currentPriceRecord.period} ({currentPriceRecord.time})</span>
                 {:else}
                   <span class="metric-meta">Período atual indisponível</span>
                 {/if}
@@ -707,7 +706,7 @@
                   {minPriceRecord ? minPriceRecord.price.toFixed(priceDecimals) : '0.00'} <span class="unit">{priceUnit}</span>
                 </span>
                 {#if minPriceRecord}
-                  <span class="metric-meta">Período {minPriceRecord.period} ({periodToTime(minPriceRecord.period)})</span>
+                  <span class="metric-meta">Período {minPriceRecord.period} ({minPriceRecord.time})</span>
                 {/if}
               </div>
             </div>
@@ -722,7 +721,7 @@
                   {maxPriceRecord ? maxPriceRecord.price.toFixed(priceDecimals) : '0.00'} <span class="unit">{priceUnit}</span>
                 </span>
                 {#if maxPriceRecord}
-                  <span class="metric-meta">Período {maxPriceRecord.period} ({periodToTime(maxPriceRecord.period)})</span>
+                  <span class="metric-meta">Período {maxPriceRecord.period} ({maxPriceRecord.time})</span>
                 {/if}
               </div>
             </div>
@@ -772,7 +771,7 @@
                 {#each processedPrices as p}
                   <tr class:current-row={isSelectedDateToday && p.period === currentPeriod} aria-current={isSelectedDateToday && p.period === currentPeriod ? 'row' : undefined}>
                     <td>{p.period}</td>
-                    <td>{periodToTime(p.period)} {isSelectedDateToday && p.period === currentPeriod ? '(Atual)' : ''}</td>
+                    <td>{p.time} {isSelectedDateToday && p.period === currentPeriod ? '(Atual)' : ''}</td>
                     <td class="text-right font-mono font-bold">{p.price.toFixed(priceDecimals)} {priceUnit}</td>
                     <td class="text-center">
                       <span class="badge badge-price {getPriceClass(p.price)}">
