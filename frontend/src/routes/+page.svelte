@@ -515,6 +515,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Tarifa Spot - Dashboard</title>
+</svelte:head>
+
 <main class="dashboard-container">
   <!-- Header Section -->
   <header class="dashboard-header">
@@ -1244,7 +1248,6 @@
     padding: 1.25rem;
     border-radius: 16px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
     gap: 1.5rem;
   }
