@@ -70,3 +70,10 @@ To test the Docker build locally:
 docker build -t omie-dashboard .
 docker run -p 3000:3000 -v $(pwd)/data:/data omie-dashboard
 ```
+
+---
+
+## 📄 License
+
+This project is licensed under the GNU Affero General Public License v3 - see the [LICENSE](LICENSE) file for details.
+

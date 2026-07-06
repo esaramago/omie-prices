@@ -792,8 +792,6 @@
 
   .logo-icon {
     font-size: 2.2rem;
-    background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-    -webkit-text-fill-color: transparent;
     filter: drop-shadow(0 0 8px rgba(0, 242, 254, 0.4));
   }
 

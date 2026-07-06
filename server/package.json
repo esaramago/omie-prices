@@ -4,6 +4,7 @@
   "description": "Backend API and scraper for OMIE electricity prices",
   "main": "index.js",
   "type": "module",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js"
