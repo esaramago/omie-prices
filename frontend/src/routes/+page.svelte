@@ -152,14 +152,14 @@
   const lowThresholdPercent = $derived(isWeekend ? 0.92 : 0.8);
   const highThresholdPercent = $derived(isWeekend ? 1.08 : 1.2);
 
-  const historicalAverage = $derived.by(() => {
+  const historicalAverageWeekday = $derived.by(() => {
     if (!apiStatus || !apiStatus.database || !apiStatus.database.historicalAverages) {
       return null;
     }
     const countryAverages = apiStatus.database.historicalAverages[selectedCountry];
     if (!countryAverages) return null;
     
-    const baseAvg = isWeekend ? countryAverages.weekend : countryAverages.weekday;
+    const baseAvg = countryAverages.weekday;
     
     // Convert to Coopérnico if necessary
     if (selectedProvider === 'Coopérnico') {
@@ -172,6 +172,31 @@
     }
     return baseAvg;
   });
+
+  const historicalAverageWeekend = $derived.by(() => {
+    if (!apiStatus || !apiStatus.database || !apiStatus.database.historicalAverages) {
+      return null;
+    }
+    const countryAverages = apiStatus.database.historicalAverages[selectedCountry];
+    if (!countryAverages) return null;
+    
+    const baseAvg = countryAverages.weekend;
+    
+    // Convert to Coopérnico if necessary
+    if (selectedProvider === 'Coopérnico') {
+      const k = 0.009;
+      const GO = 0.001;
+      const FP = 0.15;
+      const TAR = 0.0607;
+      const omieKwh = baseAvg / 1000;
+      return ((omieKwh + k) * (1 + FP)) + GO + TAR;
+    }
+    return baseAvg;
+  });
+
+  const historicalAverage = $derived(
+    isWeekend ? historicalAverageWeekend : historicalAverageWeekday
+  );
 
   const formattedMinDate = $derived.by(() => {
     if (!apiStatus || !apiStatus.database || !apiStatus.database.minDate) {
@@ -679,14 +704,26 @@
               </div>
             </div>
 
-            {#if historicalAverage !== null}
+            {#if historicalAverageWeekday !== null}
               <div class="metric-item">
                 <span class="metric-label">
                   <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;"></span>
-                  Média Histórica ({isWeekend ? 'Fim de Semana' : 'Dia Útil'})
+                  Média Histórica (Dia Útil)
                 </span>
                 <span class="metric-value font-mono" style="color: #38bdf8;">
-                  {historicalAverage.toFixed(priceDecimals)} <span class="unit">{priceUnit}</span>
+                  {historicalAverageWeekday.toFixed(priceDecimals)} <span class="unit">{priceUnit}</span>
+                </span>
+              </div>
+            {/if}
+
+            {#if historicalAverageWeekend !== null}
+              <div class="metric-item">
+                <span class="metric-label">
+                  <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;"></span>
+                  Média Histórica (Fim de Semana)
+                </span>
+                <span class="metric-value font-mono" style="color: #38bdf8;">
+                  {historicalAverageWeekend.toFixed(priceDecimals)} <span class="unit">{priceUnit}</span>
                 </span>
               </div>
             {/if}
