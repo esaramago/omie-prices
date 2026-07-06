@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
 
   function detectCountry() {
     if (typeof window === 'undefined') return 'PT';
@@ -70,18 +70,21 @@
   let currentPeriod = $state(getCurrentPeriod());
   const currentHour = $derived(Math.floor((currentPeriod - 1) / 4));
 
+  function convertToCoopernico(omieMwh) {
+    const k = 0.009;
+    const GO = 0.001;
+    const FP = 0.15;
+    const TAR = 0.0607; // Tarifa de Acesso às Redes BTN Simples (2026)
+    const omieKwh = omieMwh / 1000;
+    return ((omieKwh + k) * (1 + FP)) + GO + TAR;
+  }
+
   const processedPrices = $derived.by(() => {
     if (selectedProvider === 'Coopérnico') {
-      const k = 0.009;
-      const GO = 0.001;
-      const FP = 0.15;
-      const TAR = 0.0607; // Tarifa de Acesso às Redes BTN Simples (2026)
       return prices.map(p => {
-        const omieKwh = p.price / 1000;
-        const coopernicoKwh = ((omieKwh + k) * (1 + FP)) + GO + TAR;
         return {
           ...p,
-          price: coopernicoKwh
+          price: convertToCoopernico(p.price)
         };
       });
     }
@@ -163,12 +166,7 @@
     
     // Convert to Coopérnico if necessary
     if (selectedProvider === 'Coopérnico') {
-      const k = 0.009;
-      const GO = 0.001;
-      const FP = 0.15;
-      const TAR = 0.0607;
-      const omieKwh = baseAvg / 1000;
-      return ((omieKwh + k) * (1 + FP)) + GO + TAR;
+      return convertToCoopernico(baseAvg);
     }
     return baseAvg;
   });
@@ -184,12 +182,7 @@
     
     // Convert to Coopérnico if necessary
     if (selectedProvider === 'Coopérnico') {
-      const k = 0.009;
-      const GO = 0.001;
-      const FP = 0.15;
-      const TAR = 0.0607;
-      const omieKwh = baseAvg / 1000;
-      return ((omieKwh + k) * (1 + FP)) + GO + TAR;
+      return convertToCoopernico(baseAvg);
     }
     return baseAvg;
   });
@@ -213,21 +206,42 @@
     historicalAverage !== null ? historicalAverage : averagePrice
   );
 
+  let activeAbortController = null;
+
   // Fetch prices from Express API
   async function loadData() {
+    if (activeAbortController) {
+      activeAbortController.abort();
+    }
+
+    const controller = new AbortController();
+    activeAbortController = controller;
+    const signal = controller.signal;
+
     loading = true;
     error = null;
     try {
-      const res = await fetch(`/api/prices?country=${selectedCountry}&start=${selectedDate}&end=${selectedDate}`);
+      const res = await fetch(`/api/prices?country=${selectedCountry}&start=${selectedDate}&end=${selectedDate}`, { signal });
       if (!res.ok) {
         throw new Error('Erro ao obter os preços da API.');
       }
-      prices = await res.json();
+      const data = await res.json();
+      if (!signal.aborted) {
+        prices = data;
+      }
     } catch (err) {
-      error = err.message;
-      prices = [];
+      if (err.name === 'AbortError') return;
+      if (!signal.aborted) {
+        error = err.message;
+        prices = [];
+      }
     } finally {
-      loading = false;
+      if (!signal.aborted) {
+        loading = false;
+        if (activeAbortController === controller) {
+          activeAbortController = null;
+        }
+      }
     }
   }
 
@@ -245,7 +259,11 @@
 
   // Trigger load when selected parameters change
   $effect(() => {
-    loadData();
+    selectedCountry;
+    selectedDate;
+    untrack(() => {
+      loadData();
+    });
   });
 
   // Save selected provider to localStorage when it changes
@@ -271,6 +289,9 @@
     }, 5 * 60 * 1000);
     return () => {
       clearInterval(interval);
+      if (activeAbortController) {
+        activeAbortController.abort();
+      }
       if (chart) {
         chart.destroy();
         chart = null;
@@ -503,7 +524,7 @@
   <!-- Header Section -->
   <header class="dashboard-header">
     <div class="brand">
-      <div class="logo-icon">⚡</div>
+      <div class="logo-icon" aria-hidden="true">⚡</div>
       <div>
         <h1>Tarifa Spot</h1>
         <p class="subtitle">Preços do mercado eléctrico ibérico OMIE</p>
@@ -513,11 +534,12 @@
     <div class="controls-panel">
       <!-- Country Picker -->
       <div class="filter-group">
-        <span class="filter-label">País</span>
-        <div class="segmented-control">
+        <span class="filter-label" id="country-label">País</span>
+        <div class="segmented-control" role="group" aria-labelledby="country-label">
           <button 
             class="control-btn" 
             class:active={selectedCountry === 'PT'} 
+            aria-pressed={selectedCountry === 'PT'}
             onclick={() => selectedCountry = 'PT'}
           >
             Portugal
@@ -525,6 +547,7 @@
           <button 
             class="control-btn" 
             class:active={selectedCountry === 'ES'} 
+            aria-pressed={selectedCountry === 'ES'}
             onclick={() => selectedCountry = 'ES'}
           >
             Espanha
@@ -563,9 +586,9 @@
 
   <!-- Error State -->
   {#if error}
-    <section class="alert alert-error">
+    <section class="alert alert-error" role="alert">
       <div class="alert-content">
-        <span class="alert-icon">⚠️</span>
+        <span class="alert-icon" aria-hidden="true">⚠️</span>
         <div>
           <h3>Erro ao carregar dados</h3>
           <p>{error}</p>
@@ -577,13 +600,13 @@
 
   <!-- Loading State -->
   {#if loading}
-    <div class="loader-overlay">
+    <div class="loader-overlay" role="status" aria-live="polite">
       <div class="spinner"></div>
       <p>A carregar preços de energia...</p>
     </div>
   {:else if processedPrices.length === 0 && !error}
-    <section class="alert alert-info">
-      <span class="alert-icon">ℹ️</span>
+    <section class="alert alert-info" role="status">
+      <span class="alert-icon" aria-hidden="true">ℹ️</span>
       <div>
         <h3>Sem dados disponíveis</h3>
         <p>Não foram encontrados preços para a data selecionada ({selectedDate}). O mercado da OMIE pode ainda não ter publicado os preços para amanhã.</p>
@@ -608,22 +631,22 @@
 
         <div class="chart-legend">
           <div class="legend-item">
-            <span class="legend-color-dot cheap"></span>
+            <span class="legend-color-dot cheap" aria-hidden="true"></span>
             <span class="legend-label">Barato</span>
             <span class="legend-value">&lt; {Math.round(lowThresholdPercent * 100)}% ({(comparisonAverage * lowThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
           </div>
           <div class="legend-item">
-            <span class="legend-color-dot moderate-cheap"></span>
+            <span class="legend-color-dot moderate-cheap" aria-hidden="true"></span>
             <span class="legend-label">Moderado</span>
             <span class="legend-value">{Math.round(lowThresholdPercent * 100)}% - 100% ({(comparisonAverage * lowThresholdPercent).toFixed(priceDecimals)} a {comparisonAverage.toFixed(priceDecimals)} {priceUnit})</span>
           </div>
           <div class="legend-item">
-            <span class="legend-color-dot moderate-expensive"></span>
+            <span class="legend-color-dot moderate-expensive" aria-hidden="true"></span>
             <span class="legend-label">Caro</span>
             <span class="legend-value">100% - {Math.round(highThresholdPercent * 100)}% ({comparisonAverage.toFixed(priceDecimals)} a {(comparisonAverage * highThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
           </div>
           <div class="legend-item">
-            <span class="legend-color-dot expensive"></span>
+            <span class="legend-color-dot expensive" aria-hidden="true"></span>
             <span class="legend-label">Muito caro</span>
             <span class="legend-value">&gt; {Math.round(highThresholdPercent * 100)}% ({(comparisonAverage * highThresholdPercent).toFixed(priceDecimals)} {priceUnit})</span>
           </div>
@@ -646,7 +669,7 @@
           <div class="metrics-list">
             <div class="metric-item">
               <span class="metric-label">
-                <span class="indicator-dot dot-cyan"></span>
+                <span class="indicator-dot dot-cyan" aria-hidden="true"></span>
                 Preço Atual
                 {#if isSelectedDateToday}
                   <span class="stat-badge badge-cyan" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; margin-left: 0.25rem;">Live</span>
@@ -666,7 +689,7 @@
 
             <div class="metric-item">
               <span class="metric-label">
-                <span class="indicator-dot dot-amber"></span>
+                <span class="indicator-dot dot-amber" aria-hidden="true"></span>
                 Preço Médio
               </span>
               <span class="metric-value font-mono">
@@ -676,7 +699,7 @@
 
             <div class="metric-item">
               <span class="metric-label">
-                <span class="indicator-dot dot-green"></span>
+                <span class="indicator-dot dot-green" aria-hidden="true"></span>
                 Preço Mínimo
               </span>
               <div class="metric-value-container">
@@ -691,7 +714,7 @@
 
             <div class="metric-item">
               <span class="metric-label">
-                <span class="indicator-dot dot-rose"></span>
+                <span class="indicator-dot dot-rose" aria-hidden="true"></span>
                 Preço Máximo
               </span>
               <div class="metric-value-container">
@@ -707,7 +730,7 @@
             {#if historicalAverageWeekday !== null}
               <div class="metric-item">
                 <span class="metric-label">
-                  <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;"></span>
+                  <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;" aria-hidden="true"></span>
                   Média Histórica (Dia Útil)
                 </span>
                 <span class="metric-value font-mono" style="color: #38bdf8;">
@@ -719,7 +742,7 @@
             {#if historicalAverageWeekend !== null}
               <div class="metric-item">
                 <span class="metric-label">
-                  <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;"></span>
+                  <span class="indicator-dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;" aria-hidden="true"></span>
                   Média Histórica (Fim de Semana)
                 </span>
                 <span class="metric-value font-mono" style="color: #38bdf8;">
@@ -732,11 +755,11 @@
         <!-- Table Card -->
         <div class="panel table-panel">
           <div class="panel-header">
-            <h2>Lista de períodos</h2>
+            <h2 id="periods-title">Lista de períodos</h2>
             <p class="panel-desc">Preço detalhado por quarto de hora</p>
           </div>
           <div class="table-scroll-container">
-            <table class="prices-table">
+            <table class="prices-table" aria-labelledby="periods-title">
               <thead>
                 <tr>
                   <th>Período</th>
@@ -747,7 +770,7 @@
               </thead>
               <tbody>
                 {#each processedPrices as p}
-                  <tr class:current-row={isSelectedDateToday && p.period === currentPeriod}>
+                  <tr class:current-row={isSelectedDateToday && p.period === currentPeriod} aria-current={isSelectedDateToday && p.period === currentPeriod ? 'row' : undefined}>
                     <td>{p.period}</td>
                     <td>{periodToTime(p.period)} {isSelectedDateToday && p.period === currentPeriod ? '(Atual)' : ''}</td>
                     <td class="text-right font-mono font-bold">{p.price.toFixed(priceDecimals)} {priceUnit}</td>
@@ -768,14 +791,19 @@
 
   <!-- Footer Information -->
   <footer class="dashboard-footer">
-    {#if apiStatus}
-      <div class="status-indicator">
-        <span class="status-dot"></span>
-        <span>Período Disponível: <strong>{apiStatus.database.minDate}</strong> a <strong>{apiStatus.database.maxDate}</strong></span>
+    <div class="footer-row">
+      {#if apiStatus}
+        <div class="status-indicator">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Período Disponível: <strong>{apiStatus.database.minDate}</strong> a <strong>{apiStatus.database.maxDate}</strong></span>
+        </div>
+      {/if}
+      <div class="credits">
+        Desenvolvido por <a href="https://emanuelsaramago.com" target="_blank" rel="noopener noreferrer">Emanuel Saramago</a> • Repositório no <a href="https://github.com/esaramago/omie-prices" target="_blank" rel="noopener noreferrer">GitHub</a>, sob licença <a href="https://github.com/esaramago/omie-prices/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0-only</a> • Fonte de dados oficial OMIE
       </div>
-    {/if}
-    <div class="credits">
-      Desenvolvido por <a href="https://emanuelsaramago.com" target="_blank">Emanuel Saramago</a> • Repositório no <a href="https://github.com/esaramago/omie-prices" target="_blank">GitHub</a>, sob licença <a href="https://github.com/esaramago/omie-prices/blob/main/LICENSE" target="_blank">AGPL-3.0-only</a> • Fonte de dados oficial OMIE
+    </div>
+    <div class="disclaimer">
+      <strong>Aviso:</strong> O tarifário Coopérnico é o GO com horário Simples. Este é um projeto independente. Podem ocorrer erros na informação apresentada.
     </div>
   </footer>
 </main>
@@ -836,7 +864,7 @@
   .subtitle {
     margin: 0.1rem 0 0 0;
     font-size: 0.9rem;
-    color: #64748b;
+    color: #94a3b8;
     font-weight: 400;
   }
 
@@ -856,7 +884,7 @@
   .filter-label {
     font-size: 0.75rem;
     font-weight: 700;
-    color: #64748b;
+    color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -1053,12 +1081,12 @@
   .metric-value .unit {
     font-size: 0.8rem;
     font-weight: 500;
-    color: #475569;
+    color: #94a3b8;
   }
 
   .metric-meta {
     font-size: 0.75rem;
-    color: #64748b;
+    color: #94a3b8;
   }
 
 
@@ -1110,7 +1138,7 @@
   .panel-desc {
     margin: 0.2rem 0 0 0;
     font-size: 0.85rem;
-    color: #64748b;
+    color: #94a3b8;
   }
 
   /* Table panel styles */
@@ -1149,7 +1177,7 @@
     padding: 0.75rem 1rem;
     font-weight: 600;
     text-align: left;
-    color: #64748b;
+    color: #94a3b8;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
@@ -1308,15 +1336,32 @@
   /* Footer */
   .dashboard-footer {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1.5rem;
+    flex-direction: column;
+    gap: 1rem;
     margin-top: auto;
     padding-top: 1.5rem;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.85rem;
-    color: #475569;
+    color: #8a99ad;
+  }
+
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    width: 100%;
+  }
+
+  .disclaimer {
+    width: 100%;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #64748b;
+    border-top: 1px solid rgba(255, 255, 255, 0.03);
+    padding-top: 0.75rem;
+    line-height: 1.4;
   }
 
   .status-indicator {
@@ -1340,9 +1385,19 @@
 
   .credits {
     font-weight: 500;
-    > a {
-      color: inherit;
-    }
+    color: #8a99ad;
+  }
+
+  .credits a {
+    color: #cbd5e1;
+    text-decoration: underline;
+    text-decoration-color: rgba(203, 213, 225, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .credits a:hover {
+    color: #00f2fe;
+    text-decoration-color: #00f2fe;
   }
 
   /* Chart Legend */
@@ -1377,7 +1432,7 @@
     width: 100%;
     text-align: center;
     font-size: 0.75rem;
-    color: #64748b;
+    color: #94a3b8;
     margin-top: 0.5rem;
     line-height: 1.4;
   }
@@ -1462,9 +1517,18 @@
     }
 
     .dashboard-footer {
+      gap: 0.75rem;
+    }
+
+    .footer-row {
       flex-direction: column;
       align-items: flex-start;
       gap: 0.75rem;
+    }
+
+    .disclaimer {
+      text-align: left;
+      padding-top: 0.5rem;
     }
   }
 
