@@ -840,6 +840,9 @@
 
   /* Header Styles */
   .dashboard-header {
+    width: 100%;
+    max-width: 1640px;
+    margin-inline: auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1102,8 +1105,10 @@
   /* Main Layout */
   .main-layout {
     display: grid;
+    max-width: 1640px;
     grid-template-columns: 1fr;
     gap: 1.5rem;
+    margin-inline: auto;
   }
 
   /* Details Grid (Table & Summary side-by-side on desktop) */
