@@ -1352,6 +1352,9 @@
 
   /* Footer */
   .dashboard-footer {
+    width: 100%;
+    max-width: 1640px;
+    margin-inline: auto;
     display: flex;
     flex-direction: column;
     gap: 1rem;
